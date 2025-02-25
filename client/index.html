@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Simple Google Docs Clone</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="toolbar">
+      <button onclick="document.execCommand('bold')">B</button>
+      <button onclick="document.execCommand('italic')"><i>I</i></button>
+      <button onclick="document.execCommand('underline')"><u>U</u></button>
+      <button onclick="document.execCommand('justifyLeft')">Left</button>
+      <button onclick="document.execCommand('justifyCenter')">Center</button>
+      <button onclick="document.execCommand('justifyRight')">Right</button>
+    </div>
+
+    <div class="editor-container">
+      <div class="document-title" contenteditable="true">Untitled Document</div>
+      <div id="editor" contenteditable="true"></div>
+    </div>
+
+    <script src="index.js"></script>
+  </body>
+</html>
