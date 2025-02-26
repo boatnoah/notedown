@@ -1,9 +1,22 @@
 const socket = new WebSocket("ws://localhost:3000/ws");
 let editor = document.getElementById("editor");
 let localState = [];
+let globalIndex = 0;
 
 editor.addEventListener("input", (event) => {
-  socket.send(event.data);
+  let operation = {
+    value: event.data,
+    action: "INSERT",
+    indexPosition: globalIndex,
+  };
+
+  if (event.data == "null") {
+    operation.action = "DELETE";
+  }
+
+  globalIndex++;
+
+  socket.send(JSON.stringify(operation));
 });
 
 socket.onopen = () => {
@@ -12,10 +25,18 @@ socket.onopen = () => {
 };
 
 socket.onmessage = (event) => {
-  localState.push(event.data);
-  newChanges = true;
+  const operation = JSON.parse(event.data);
+  console.log(operation);
+
+  if (operation.action === "DELETE") {
+    localState.splice(operation.indexPosition, 1);
+    readLocalState();
+    return;
+  }
+
+  localState.push(operation.value);
   console.log(localState);
-  main();
+  readLocalState();
 };
 
 socket.onclose = () => {
@@ -26,16 +47,16 @@ socket.onerror = (error) => {
   console.error("WebSocket error:", error);
 };
 
-function readLocalState() {
-  editor.innerHTML = "";
-  localState.forEach((char) => {
-    editor.innerHTML += char;
-  });
-  newChanges = false;
+function placeCursorAtEnd() {
+  const range = document.createRange();
+  const selection = window.getSelection();
+  range.selectNodeContents(editor);
+  range.collapse(false);
+  selection.removeAllRanges();
+  selection.addRange(range);
 }
 
-function main() {
-  if (newChanges) {
-    readLocalState();
-  }
+function readLocalState() {
+  editor.innerHTML = localState.join("");
+  placeCursorAtEnd();
 }
