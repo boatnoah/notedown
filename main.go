@@ -43,6 +43,7 @@ func (s *Server) readLoop(ws *websocket.Conn) {
 		}
 
 		message := buffer[:n]
+		fmt.Println(string(message))
 
 		s.broadcast(message)
 
@@ -65,6 +66,6 @@ func main() {
 	http.Handle("/ws", websocket.Handler(server.handleWS))
 	fs := http.FileServer(http.Dir("client"))
 	http.Handle("/", fs)
-	fmt.Println("Started server...")
+	fmt.Println("Started server")
 	http.ListenAndServe(":3000", nil)
 }

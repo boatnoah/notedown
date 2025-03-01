@@ -1,6 +1,9 @@
 # Notedown
 
-- [ ] create a more complex definition of a character
+- [x] localState rendering
+- [x] create a more complex definition of a character
+  - [x] fractional positions
+- [ ] delete operation
+- [ ] undo/redo operation
+- [ ] collisons
 - [ ] shareable link
-- [ ] figure how display information such as the enter operation
-- [ ] localState rendering

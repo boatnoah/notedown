@@ -45,6 +45,7 @@ body {
 }
 
 #editor {
+  white-space: pre-wrap;
   outline: none;
   min-height: 500px;
   font-size: 12pt;
