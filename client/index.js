@@ -23,17 +23,26 @@ editor.addEventListener("input", (event) => {
 
   let operation = {
     clientID: clientID,
-    value: event.data,
-    action: "INSERT",
+    charID: generateUUID(),
+    value: event.inputType !== "insertParagraph" ? event.data : "\n",
+    action: event.inputType !== "deleteContentBackward" ? "INSERT" : "DELETE",
     position: fractionalPos,
   };
 
-  localState.push(operation);
+  if (operation.action === "INSERT") {
+    localState.push(operation);
+    localState.sort((a, b) => a.position - b.position);
+    readLocalState();
+  }
+
+  if (operation.action === "DELETE") {
+    let [deletedOperation, index] = findOperation();
+    localState.splice(index, 1);
+    deletedOperation.action = "DELETE";
+    operation = deletedOperation;
+  }
+
   socket.send(JSON.stringify(operation));
-
-  localState.sort((a, b) => a.position - b.position);
-
-  readLocalState();
 
   console.log(localState);
 });
@@ -45,11 +54,16 @@ socket.onopen = () => {
 socket.onmessage = (event) => {
   const operation = JSON.parse(event.data);
 
-  console.log("Current operation: ", operation);
-
   if (operation.clientID !== clientID) {
-    localState.push(operation);
-    localState.sort((a, b) => a.position - b.position);
+    if (operation.action === "INSERT") {
+      localState.push(operation);
+      localState.sort((a, b) => a.position - b.position);
+    }
+    if (operation.action === "DELETE") {
+      let [_, index] = findOperation();
+      localState.splice(index, 1);
+    }
+
     readLocalState();
   }
 };
@@ -84,6 +98,21 @@ function getCursorPosition() {
   return clonedRange.toString().length;
 }
 
+function findOperation() {
+  const currentState = editor.innerHTML;
+  let i = 0;
+  let j = 0;
+
+  while (i < localState.length && j < currentState.length) {
+    if (localState[i].value !== currentState[j]) {
+      return [localState[i], i];
+    }
+    i++;
+    j++;
+  }
+  return [localState[localState.length - 1], localState.length - 1];
+}
+
 function generateUUID() {
   const array = new Uint8Array(16);
   crypto.getRandomValues(array);
@@ -93,7 +122,7 @@ function generateUUID() {
 }
 
 function readLocalState() {
-  const prevCursorPosition = getCursorPosition();
+  let prevCursorPosition = getCursorPosition();
 
   let data = "";
 
@@ -103,7 +132,7 @@ function readLocalState() {
 
   editor.innerHTML = data;
 
-  if (prevCursorPosition !== 0) {
+  if (prevCursorPosition > 0) {
     //	place at the previous cursor position
 
     let setpos = document.createRange();
