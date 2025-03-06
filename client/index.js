@@ -4,8 +4,14 @@ let editor = document.getElementById("editor");
 let localState = [];
 
 editor.addEventListener("input", (event) => {
-  let cursorPos = getCursorPosition() - 1; // minus is need because
+  if (event.inputType === "deleteContentBackward") {
+    let deletedOperation = findOperation();
+    deletedOperation.action = "DELETE";
+    socket.send(JSON.stringify(deletedOperation));
+    return;
+  }
 
+  let cursorPos = getCursorPosition() - 1; // minus is need because
   let fractionalPos;
 
   if (localState.length === 0) {
@@ -24,27 +30,13 @@ editor.addEventListener("input", (event) => {
   let operation = {
     clientID: clientID,
     charID: generateUUID(),
-    value: event.inputType !== "insertParagraph" ? event.data : "\n",
-    action: event.inputType !== "deleteContentBackward" ? "INSERT" : "DELETE",
+    value: event.data,
+    action: "INSERT",
     position: fractionalPos,
   };
 
-  if (operation.action === "INSERT") {
-    localState.push(operation);
-    localState.sort((a, b) => a.position - b.position);
-    readLocalState();
-  }
-
-  if (operation.action === "DELETE") {
-    let [deletedOperation, index] = findOperation();
-    localState.splice(index, 1);
-    deletedOperation.action = "DELETE";
-    operation = deletedOperation;
-  }
-
+  console.log("Sending this operation to the server: ", operation);
   socket.send(JSON.stringify(operation));
-
-  console.log(localState);
 });
 
 socket.onopen = () => {
@@ -52,20 +44,10 @@ socket.onopen = () => {
 };
 
 socket.onmessage = (event) => {
-  const operation = JSON.parse(event.data);
-
-  if (operation.clientID !== clientID) {
-    if (operation.action === "INSERT") {
-      localState.push(operation);
-      localState.sort((a, b) => a.position - b.position);
-    }
-    if (operation.action === "DELETE") {
-      let [_, index] = findOperation();
-      localState.splice(index, 1);
-    }
-
-    readLocalState();
-  }
+  const operations = JSON.parse(event.data);
+  console.log("received from server", operations);
+  localState = operations;
+  readLocalState();
 };
 
 socket.onclose = () => {
@@ -103,14 +85,17 @@ function findOperation() {
   let i = 0;
   let j = 0;
 
-  while (i < localState.length && j < currentState.length) {
+  while (i < localState.length || j < currentState.length) {
+    console.log("Comparing i: ", localState[i].value);
+    console.log("Comparing j: ", currentState[j]);
     if (localState[i].value !== currentState[j]) {
-      return [localState[i], i];
+      console.log("do i make it chat");
+      return localState[i];
     }
-    i++;
-    j++;
+    i = i < localState.length ? i + 1 : j + 0;
+    j = j < currentState.length ? j + 1 : j + 0;
   }
-  return [localState[localState.length - 1], localState.length - 1];
+  return localState[localState.length - 1];
 }
 
 function generateUUID() {
@@ -124,13 +109,20 @@ function generateUUID() {
 function readLocalState() {
   let prevCursorPosition = getCursorPosition();
 
+  const sizeOfCurrentState = editor.innerHTML.length;
+  const sizeOfLocalState = localState.length;
+
+  if (sizeOfCurrentState > sizeOfLocalState) {
+    prevCursorPosition--;
+  }
+
   let data = "";
 
   for (let i = 0; i < localState.length; i++) {
     data += localState[i].value;
   }
 
-  editor.innerHTML = data;
+  editor.textContent = data;
 
   if (prevCursorPosition > 0) {
     //	place at the previous cursor position
