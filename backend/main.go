@@ -140,8 +140,8 @@ func (s *Server) broadcast(b []byte) {
 func main() {
 	server := NewServer()
 	http.Handle("/ws", websocket.Handler(server.handleWS))
-	fs := http.FileServer(http.Dir("client"))
-	http.Handle("/", fs)
+	// fs := http.FileServer(http.Dir("../frontend/"))
+	// http.Handle("/", fs)
 	fmt.Println("Started server")
 	http.ListenAndServe(":3000", nil)
 }

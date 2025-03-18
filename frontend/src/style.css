@@ -5,28 +5,6 @@ body {
   background-color: #f8f9fa;
 }
 
-.toolbar {
-  background-color: #f8f9fa;
-  border-bottom: 1px solid #e0e0e0;
-  padding: 8px 16px;
-  position: sticky;
-  top: 0;
-}
-
-.toolbar button {
-  background-color: white;
-  border: 1px solid #dadce0;
-  border-radius: 4px;
-  padding: 6px 12px;
-  margin-right: 8px;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.toolbar button:hover {
-  background-color: #f1f3f4;
-}
-
 .document-title {
   font-size: 18px;
   color: #444;
@@ -45,7 +23,6 @@ body {
 }
 
 #editor {
-  white-space: pre-wrap;
   outline: none;
   min-height: 500px;
   font-size: 12pt;

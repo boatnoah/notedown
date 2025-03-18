@@ -1,18 +1,15 @@
+import Operation from "./types";
+import { v4 as uuidv4 } from "uuid";
+
 const socket = new WebSocket("ws://localhost:3000/ws");
-const clientID = generateUUID();
+const clientID = uuidv4();
 let editor = document.getElementById("editor");
-let localState = [];
+let localState: Operation[] = [];
+let cursorPos: Operation["charID"];
 
-editor.addEventListener("input", (event) => {
-  if (event.inputType === "deleteContentBackward") {
-    let deletedOperation = findOperation();
-    deletedOperation.action = "DELETE";
-    socket.send(JSON.stringify(deletedOperation));
-    return;
-  }
-
+editor?.addEventListener("input", (event) => {
   let cursorPos = getCursorPosition() - 1; // minus is need because
-  let fractionalPos;
+  let fractionalPos: number;
 
   if (localState.length === 0) {
     fractionalPos = 0.5;
@@ -29,7 +26,7 @@ editor.addEventListener("input", (event) => {
 
   let operation = {
     clientID: clientID,
-    charID: generateUUID(),
+    charID: uuidv4(),
     value: event.data,
     action: "INSERT",
     position: fractionalPos,
@@ -57,15 +54,6 @@ socket.onclose = () => {
 socket.onerror = (error) => {
   console.error("WebSocket error:", error);
 };
-
-function placeCursorAtEnd() {
-  const range = document.createRange();
-  const selection = window.getSelection();
-  range.selectNodeContents(editor);
-  range.collapse(false);
-  selection.removeAllRanges();
-  selection.addRange(range);
-}
 
 function getCursorPosition() {
   if (document.activeElement !== editor) {
@@ -98,47 +86,14 @@ function findOperation() {
   return localState[localState.length - 1];
 }
 
-function generateUUID() {
-  const array = new Uint8Array(16);
-  crypto.getRandomValues(array);
-  array[6] = (array[6] & 0x0f) | 0x40; // Version 4
-  array[8] = (array[8] & 0x3f) | 0x80; // Variant 10xx
-  return [...array].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
 function readLocalState() {
-  let prevCursorPosition = getCursorPosition();
-
-  const sizeOfCurrentState = editor.innerHTML.length;
-  const sizeOfLocalState = localState.length;
-
-  if (sizeOfCurrentState > sizeOfLocalState) {
-    prevCursorPosition--;
-  }
-
-  let data = "";
-
   for (let i = 0; i < localState.length; i++) {
-    data += localState[i].value;
-  }
-
-  editor.textContent = data;
-
-  if (prevCursorPosition > 0) {
-    //	place at the previous cursor position
-
-    let setpos = document.createRange();
-
-    // Creates object for selection
-    let set = window.getSelection();
-
-    setpos.setStart(editor.childNodes[0], prevCursorPosition);
-
-    setpos.collapse(true);
-
-    set.removeAllRanges();
-
-    set.addRange(setpos);
-    editor.focus();
+    const operation = localState[i];
+    const uuid = operation.charID;
+    const textContent = document.createTextNode(operation.value);
+    const span = document.createElement("span");
+    span.appendChild(textContent);
+    span.setAttribute("data", uuid);
+    editor.appendChild(span);
   }
 }
