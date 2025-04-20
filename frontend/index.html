@@ -8,10 +8,15 @@
     <title>Vite + TS</title>
   </head>
   <body>
-    <div class="editor-container">
-      <div class="document-title" contenteditable="true">Untitled Document</div>
-      <div id="editor" contenteditable="true"></div>
+    <div id="connection-status"></div>
+    <div class="editor-wrapper">
+      <div class="editor-container">
+        <div id="editor"></div>
+      </div>
+      <div class="preview-container">
+        <div id="preview"></div>
+      </div>
     </div>
-    <script type="module" src="/src/main.ts"></script>
   </body>
+  <script type="module" src="/src/main.ts"></script>
 </html>

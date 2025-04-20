@@ -13,6 +13,13 @@
     "vite": "^6.2.0"
   },
   "dependencies": {
-    "uuid": "^11.1.0"
+    "@codemirror/lang-markdown": "^6.3.2",
+    "@codemirror/state": "^6.5.2",
+    "@codemirror/view": "^6.36.5",
+    "codemirror": "^6.0.1",
+    "marked": "^15.0.8",
+    "uuid": "^11.1.0",
+    "y-websocket": "^3.0.0",
+    "yjs": "^13.6.24"
   }
 }

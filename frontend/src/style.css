@@ -2,35 +2,49 @@ body {
   margin: 0;
   padding: 0;
   font-family: Arial, sans-serif;
-  background-color: #f8f9fa;
+  background-color: #f0f2f5;
+  height: 100vh;
 }
 
-.document-title {
-  font-size: 18px;
-  color: #444;
-  padding: 8px 0;
-  margin-bottom: 16px;
+/* Flexbox layout for side-by-side editor + preview */
+.editor-wrapper {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
 }
 
+/* Left: Editor */
 .editor-container {
-  max-width: 850px;
-  margin: 20px auto;
-  background-color: white;
-  min-height: calc(100vh - 120px);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  border-radius: 4px;
+  flex: 1;
   padding: 40px;
+  background-color: #fff;
+  box-sizing: border-box;
+  border-right: 1px solid #ddd;
+  overflow-y: auto;
 }
 
 #editor {
-  outline: none;
-  min-height: 500px;
-  font-size: 12pt;
-  line-height: 1.5;
+  min-height: 100%;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+/* Right: Markdown Preview */
+.preview-container {
+  flex: 1;
+  padding: 40px;
+  background-color: #fafafa;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+#preview {
+  white-space: pre-wrap;
+  font-family: "Fira Code", monospace;
+  font-size: 16px;
   color: #333;
 }
 
-#editor:empty:before {
-  content: "Type something...";
-  color: #999;
+.cm-editor.cm-focused {
+  outline: none;
 }
