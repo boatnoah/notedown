@@ -1,76 +1,25 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"sort"
+	"strings"
 	"sync"
 
-	"github.com/google/uuid"
+	"github.com/markbates/goth/gothic"
 	"golang.org/x/net/websocket"
 )
 
 type Server struct {
 	mu          sync.Mutex
 	connections map[*websocket.Conn]bool
-	document    *Document
-}
-
-type Document struct {
-	documentId uuid.UUID
-	content    []Operation
-}
-
-type Operation struct {
-	ClientID string  `json:"clientID"`
-	Value    string  `json:"value"`
-	CharID   string  `json:"charID"`
-	Action   string  `json:"action"`
-	Position float32 `json:"position"`
-}
-
-func (d *Document) addOperation(operation Operation) {
-	d.content = append(d.content, operation)
-}
-
-func (d *Document) deleteOperation(operation Operation) int {
-	var index int
-	left := 0
-	right := len(d.content) - 1
-
-	for left <= right {
-		mid := (left + right) / 2
-		fmt.Println("left: ", left)
-		fmt.Println("right: ", right)
-		fmt.Println("middle: ", mid)
-		fmt.Println(d.content[mid].CharID, operation.CharID)
-		if d.content[mid].CharID == operation.CharID {
-			fmt.Println(d.content[mid].CharID, operation.CharID)
-			index = mid
-			break
-		} else if d.content[mid].Position < operation.Position {
-			left = mid + 1
-		} else if d.content[mid].Position > operation.Position {
-			right = mid - 1
-		}
-	}
-	fmt.Println("left: ", left)
-	fmt.Println("right: ", right)
-
-	d.content = append(d.content[:index], d.content[index+1:]...)
-	return index
 }
 
 func NewServer() *Server {
 	return &Server{
 		connections: make(map[*websocket.Conn]bool),
-		document: &Document{
-			documentId: uuid.New(),
-			content:    []Operation{},
-		},
 	}
 }
 
@@ -91,35 +40,14 @@ func (s *Server) readLoop(ws *websocket.Conn) {
 		n, err := ws.Read(buffer)
 		if err != nil {
 			if err == io.EOF {
-				break
+				fmt.Println("Client disconnected: ", ws.RemoteAddr())
+			} else {
+				fmt.Println("read error", err)
 			}
-			fmt.Println("read error", err)
+			return
 		}
 
-		var operation Operation
-		err = json.Unmarshal(buffer[:n], &operation)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		if operation.Action == "INSERT" {
-			s.document.addOperation(operation)
-			sort.Slice(s.document.content, func(i, j int) bool {
-				return s.document.content[i].Position < s.document.content[j].Position
-			})
-		}
-
-		if operation.Action == "DELETE" {
-			i := s.document.deleteOperation(operation)
-			fmt.Println(i)
-		}
-
-		jsonBytes, err := json.Marshal(s.document.content)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		s.broadcast(jsonBytes)
+		s.broadcast(buffer[:n])
 
 		fmt.Println(string(buffer[:n]))
 
@@ -131,17 +59,77 @@ func (s *Server) broadcast(b []byte) {
 		go func(ws *websocket.Conn) {
 			_, err := ws.Write(b)
 			if err != nil {
-				fmt.Println("write error", err)
 			}
 		}(ws)
 	}
 }
 
+func handleProviderLogin(w http.ResponseWriter, r *http.Request) {
+	// Extract the provider (e.g., "google")
+	pathSegments := strings.Split(r.URL.Path, "/")
+	if len(pathSegments) < 3 {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+	provider := pathSegments[2] // Extracting 'google' from '/auth/google'
+
+	// Add provider as a query parameter
+	q := r.URL.Query()
+	q.Add("provider", provider)
+	r.URL.RawQuery = q.Encode()
+
+	// Begin the authentication process
+	gothic.BeginAuthHandler(w, r)
+}
+
+func getGoogleAuthCallbackFunc(w http.ResponseWriter, r *http.Request) {
+	for _, c := range r.Cookies() {
+		fmt.Printf("→ incoming cookie: %s=%s; Domain=%s; Path=%s; Secure=%v\n",
+			c.Name, c.Value, c.Domain, c.Path, c.Secure)
+	}
+	// We have to check if we are getting {provider} from the path
+	value := r.URL.Path
+	fmt.Println("value", value)
+
+	// Extract the provider from the URL path
+	pathSegments := strings.Split(r.URL.Path, "/")
+	if len(pathSegments) < 4 {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+	provider := pathSegments[2] // Extracting 'google' from '/auth/google/callback'
+
+	// Log the extracted provider
+	fmt.Println("provider", provider)
+
+	// Add provider as a query parameter (this is what `gothic.CompleteUserAuth` expects)
+	q := r.URL.Query()
+	q.Add("provider", provider)
+	r.URL.RawQuery = q.Encode()
+
+	// Complete the authentication process
+	user, err := gothic.CompleteUserAuth(w, r)
+	if err != nil {
+		fmt.Fprintln(w, err)
+		return
+	}
+
+	// Log the authenticated user
+	fmt.Println(user)
+
+	// Redirect the user after authentication
+	http.Redirect(w, r, "http://localhost:5173/editor", http.StatusFound)
+}
+
 func main() {
+	NewAuth()
+	router := http.NewServeMux()
+	router.HandleFunc("/auth/google", handleProviderLogin)
+	router.HandleFunc("/auth/google/callback", getGoogleAuthCallbackFunc)
+
 	server := NewServer()
-	http.Handle("/ws", websocket.Handler(server.handleWS))
-	// fs := http.FileServer(http.Dir("../frontend/"))
-	// http.Handle("/", fs)
-	fmt.Println("Started server")
-	http.ListenAndServe(":3000", nil)
+	router.Handle("/ws", websocket.Handler(server.handleWS))
+
+	fmt.Println("listening on :3000")
+	log.Fatal(http.ListenAndServe(":3000", router))
 }

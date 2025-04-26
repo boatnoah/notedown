@@ -1,14 +1,17 @@
 # Notedown
 
-- [x] localState rendering
-- [x] create a more complex definition of a character
-  - [x] fractional positions
-- [x] delete operation
-  - [ ] hold delete
-- [ ] database operations CRUD
-- [ ] undo/redo operation
-- [ ] collisons
-- [ ] shareable link
+Feats:
 
-Solution to current problem:
-So each character is a more complex data type. You are sending operations to the server. On the client side you can data attribute on each character (wrapped in maybe a span tag)
+- [x] Detect change to the editor.
+- [x] Send raw array buffer over websocket.
+  - [ ] Avoid redudant packets from being applied.
+- [x] Go distributes it to all clients
+- [x] On message convert array buffer to Uint8array
+- [x] Apply changes
+- [x] Implement awareness protocol
+- [ ] when a new client joins figure out a way to render the state for the joined client
+- [ ] create an enpoint that gives you all the connections from the connections map
+
+Chores:
+
+- [ ] fix write error
