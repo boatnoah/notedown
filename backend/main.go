@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/google/uuid" // ← add this
 	"io"
 	"log"
 	"net/http"
@@ -14,26 +15,29 @@ import (
 
 type Server struct {
 	mu          sync.Mutex
-	connections map[*websocket.Conn]bool
+	connections map[string]map[*websocket.Conn]bool
 }
 
 func NewServer() *Server {
 	return &Server{
-		connections: make(map[*websocket.Conn]bool),
+		connections: make(map[string]map[*websocket.Conn]bool),
 	}
 }
 
 func (s *Server) handleWS(ws *websocket.Conn) {
-	fmt.Println("hello I am a new connection and I coming from: ", ws.RemoteAddr())
+	roomID := ws.Request().URL.Query().Get("room")
 
 	s.mu.Lock()
-	s.connections[ws] = true
+	if _, ok := s.connections[roomID]; !ok {
+		s.connections[roomID] = make(map[*websocket.Conn]bool)
+	}
+	s.connections[roomID][ws] = true
 	s.mu.Unlock()
 
-	s.readLoop(ws)
+	s.readLoop(ws, roomID)
 }
 
-func (s *Server) readLoop(ws *websocket.Conn) {
+func (s *Server) readLoop(ws *websocket.Conn, roomID string) {
 	buffer := make([]byte, 1024)
 
 	for {
@@ -47,20 +51,26 @@ func (s *Server) readLoop(ws *websocket.Conn) {
 			return
 		}
 
-		s.broadcast(buffer[:n])
+		s.broadcast(buffer[:n], roomID)
 
 		fmt.Println(string(buffer[:n]))
 
 	}
 }
 
-func (s *Server) broadcast(b []byte) {
-	for ws := range s.connections {
-		go func(ws *websocket.Conn) {
-			_, err := ws.Write(b)
-			if err != nil {
-			}
-		}(ws)
+func (s *Server) broadcast(b []byte, roomID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if room, exists := s.connections[roomID]; exists {
+		for ws := range room {
+			go func(ws *websocket.Conn) {
+				_, err := ws.Write(b)
+				if err != nil {
+					fmt.Printf("Error broadcasting to client: %v\n", err)
+				}
+			}(ws)
+		}
 	}
 }
 
@@ -82,12 +92,8 @@ func handleProviderLogin(w http.ResponseWriter, r *http.Request) {
 	gothic.BeginAuthHandler(w, r)
 }
 
-func getGoogleAuthCallbackFunc(w http.ResponseWriter, r *http.Request) {
-	for _, c := range r.Cookies() {
-		fmt.Printf("→ incoming cookie: %s=%s; Domain=%s; Path=%s; Secure=%v\n",
-			c.Name, c.Value, c.Domain, c.Path, c.Secure)
-	}
-	// We have to check if we are getting {provider} from the path
+func (s *Server) getGoogleAuthCallbackFunc(w http.ResponseWriter, r *http.Request) {
+
 	value := r.URL.Path
 	fmt.Println("value", value)
 
@@ -114,6 +120,22 @@ func getGoogleAuthCallbackFunc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 1) generate a random room ID
+	roomID := uuid.New().String()
+
+	// 2) init the room in memory
+	s.mu.Lock()
+	s.connections[roomID] = make(map[*websocket.Conn]bool)
+	s.mu.Unlock()
+
+	log.Printf("🎉 user %s logged in → new room %s created\n", user.Email, roomID)
+
+	// 3) redirect them into the editor (front-end reads `room` query param and dials /ws)
+	http.Redirect(w, r,
+		fmt.Sprintf("http://localhost:5173/editor?room=%s", roomID),
+		http.StatusFound,
+	)
+
 	// Log the authenticated user
 	fmt.Println(user)
 
@@ -122,13 +144,14 @@ func getGoogleAuthCallbackFunc(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	NewAuth()
-	router := http.NewServeMux()
-	router.HandleFunc("/auth/google", handleProviderLogin)
-	router.HandleFunc("/auth/google/callback", getGoogleAuthCallbackFunc)
 
 	server := NewServer()
+
+	NewAuth()
+	router := http.NewServeMux()
 	router.Handle("/ws", websocket.Handler(server.handleWS))
+	router.HandleFunc("/auth/google", handleProviderLogin)
+	router.HandleFunc("/auth/google/callback", server.getGoogleAuthCallbackFunc)
 
 	fmt.Println("listening on :3000")
 	log.Fatal(http.ListenAndServe(":3000", router))

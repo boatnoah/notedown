@@ -10,11 +10,33 @@ import { keymap } from "@codemirror/view";
 import { insertNewline, defaultKeymap } from "@codemirror/commands";
 import * as random from "lib0/random";
 
-// src/editor.ts
-
 export function initEditor() {
   const root = document.getElementById("app")!;
+
+  // 1) Get or generate room ID & update URL
+  const params = new URLSearchParams(window.location.search);
+  let room = params.get("room");
+  if (!room) {
+    room = crypto.randomUUID();
+    params.set("room", room);
+    window.history.replaceState(
+      {},
+      "",
+      `${window.location.pathname}?${params.toString()}`,
+    );
+  }
+
+  // 2) Render Share Link UI + Editor/Preview
   root.innerHTML = `
+    <div class="share-container">
+      <label for="share-link">Share this link:</label>
+      <div class="share-controls">
+        <input id="share-link" type="text" readonly value="${window.location.href}" />
+        <button id="copy-btn">Copy</button>
+        <button id="save-btn">Save Link</button>
+        <button id="download-btn">Save to Machine</button>
+      </div>
+    </div>
     <div class="editor-wrapper">
       <div class="editor-container">
         <div id="editor"></div>
@@ -22,29 +44,42 @@ export function initEditor() {
       <div class="preview-container">
         <div id="preview"></div>
       </div>
-    </div> 
+    </div>
   `;
 
+  // 3) Wire up Copy button
+  document.getElementById("copy-btn")!.addEventListener("click", () => {
+    navigator.clipboard
+      .writeText(window.location.href)
+      .then(() => alert("Link copied to clipboard!"))
+      .catch(() => prompt("Copy this URL:", window.location.href));
+  });
+
+  // 4) Wire up Save Link button (bookmark helper)
+  document.getElementById("save-btn")!.addEventListener("click", () => {
+    const url = window.location.href;
+    if (navigator.clipboard) {
+      navigator.clipboard
+        .writeText(url)
+        .then(() => alert("URL copied! Now paste into your bookmarks bar."))
+        .catch(() => alert(`Here’s the URL:\n${url}`));
+    } else {
+      window.prompt(
+        "Copy this URL and press Ctrl+D (or ⌘+D) to bookmark:",
+        url,
+      );
+    }
+  });
+
+  // 5) WebSocket & Yjs setup
   const protocol = location.protocol === "https:" ? "wss" : "ws";
-  const url = `${protocol}://${location.host}/ws`;
-  const socket = new WebSocket(url);
+  const socket = new WebSocket(
+    `${protocol}://${location.host}/ws?room=${encodeURIComponent(room)}`,
+  );
 
   const ydoc = new Y.Doc();
   const yText = ydoc.getText("markdown");
   const awareness = new awarenessProtocol.Awareness(ydoc);
-
-  const usercolors = [
-    { color: "#30bced", light: "#30bced33" },
-    { color: "#6eeb83", light: "#6eeb8333" },
-    { color: "#ffbc42", light: "#ffbc4233" },
-    { color: "#ecd444", light: "#ecd44433" },
-    { color: "#ee6352", light: "#ee635233" },
-    { color: "#9ac2c9", light: "#9ac2c933" },
-    { color: "#8acb88", light: "#8acb8833" },
-    { color: "#1be7ff", light: "#1be7ff33" },
-  ];
-
-  const userColor = usercolors[random.uint32() % usercolors.length];
 
   const editorEl = document.getElementById("editor")!;
   const previewEl = document.getElementById("preview")!;
@@ -61,74 +96,62 @@ export function initEditor() {
       yCollab(yText, awareness, { undoManager: false }),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
-          const text = update.state.doc.toString();
-          updatePreview(text);
+          updatePreview(update.state.doc.toString());
         }
       }),
     ],
   });
 
-  const view = new EditorView({
-    state,
-    parent: editorEl,
+  // create editor view reference for download
+  const view = new EditorView({ state, parent: editorEl });
+
+  // 6) Wire up Save to Machine button (download markdown)
+  document.getElementById("download-btn")!.addEventListener("click", () => {
+    const content = view.state.doc.toString();
+    const blob = new Blob([content], { type: "text/markdown" });
+    const downloadUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    a.download = `${room}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(downloadUrl);
   });
 
+  // Broadcast document updates
   ydoc.on("update", () => {
-    const documentState = Y.encodeStateAsUpdate(ydoc); // is a Uint8Array
-    const base64Encoded = fromUint8Array(documentState);
-
-    const doc = {
-      type: "docContent",
-      content: base64Encoded,
-    };
-
-    socket.send(JSON.stringify(doc));
+    const encoded = fromUint8Array(Y.encodeStateAsUpdate(ydoc));
+    socket.send(JSON.stringify({ type: "docContent", content: encoded }));
   });
 
+  // Broadcast awareness changes
   awareness.on("update", ({ added, updated, removed }) => {
-    const changedClients = added.concat(updated).concat(removed);
-    const documentState = awarenessProtocol.encodeAwarenessUpdate(
-      awareness,
-      changedClients,
-    ); // is a Uint8Array
-    const base64Encoded = fromUint8Array(documentState);
-
-    const aw = {
-      type: "awarenessContent",
-      content: base64Encoded,
-    };
-
-    socket.send(JSON.stringify(aw));
+    const clients = added.concat(updated).concat(removed);
+    const encoded = fromUint8Array(
+      awarenessProtocol.encodeAwarenessUpdate(awareness, clients),
+    );
+    socket.send(JSON.stringify({ type: "awarenessContent", content: encoded }));
   });
-  socket.onopen = () => {
-    console.log("Connected to the WebSocket server.");
-  };
 
   socket.onmessage = (event) => {
-    const metaData = JSON.parse(event.data);
-
-    if (metaData.type === "docContent") {
-      const binaryEncoded = toUint8Array(metaData.content);
-      Y.applyUpdate(ydoc, binaryEncoded);
+    const msg = JSON.parse(event.data);
+    if (msg.type === "docContent") {
+      Y.applyUpdate(ydoc, toUint8Array(msg.content));
     }
-
-    if (metaData.type === "awarenessContent") {
-      const binaryEncoded = toUint8Array(metaData.content);
+    if (msg.type === "awarenessContent") {
       awarenessProtocol.applyAwarenessUpdate(
         awareness,
-        binaryEncoded,
+        toUint8Array(msg.content),
         awareness.clientID,
       );
     }
   };
 
   socket.onclose = () => {
-    console.log("WebSocket connection closed.");
-    EditorState.readOnly.of(true);
-    alert("refresh please");
+    console.log("WebSocket closed");
+    alert("Connection lost—please refresh the page.");
   };
 
-  socket.onerror = (error) => {
-    console.error("WebSocket error:", error);
-  };
+  socket.onerror = (err) => console.error("WebSocket error:", err);
 }
