@@ -8,7 +8,12 @@ import * as awarenessProtocol from "y-protocols/awareness.js";
 import { yCollab } from "y-codemirror.next";
 import { keymap } from "@codemirror/view";
 import { insertNewline, defaultKeymap } from "@codemirror/commands";
-import * as random from "lib0/random";
+
+type AwarenessChange = {
+  added: number[];
+  updated: number[];
+  removed: number[];
+};
 
 export function initEditor() {
   const root = document.getElementById("app")!;
@@ -126,7 +131,7 @@ export function initEditor() {
   });
 
   // Broadcast awareness changes
-  awareness.on("update", ({ added, updated, removed }) => {
+  awareness.on("update", ({ added, updated, removed }: AwarenessChange) => {
     const clients = added.concat(updated).concat(removed);
     const encoded = fromUint8Array(
       awarenessProtocol.encodeAwarenessUpdate(awareness, clients),
