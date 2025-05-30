@@ -7,6 +7,6 @@ export function initAuth() {
   `;
 
   document.getElementById("btn-google")!.addEventListener("click", () => {
-    window.location.href = "http://localhost:3000/auth/google";
+    window.location.href = "https://backend-ph82.onrender.com/auth/google";
   });
 }
