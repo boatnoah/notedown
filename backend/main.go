@@ -132,15 +132,10 @@ func (s *Server) getGoogleAuthCallbackFunc(w http.ResponseWriter, r *http.Reques
 
 	// 3) redirect them into the editor (front-end reads `room` query param and dials /ws)
 	http.Redirect(w, r,
-		fmt.Sprintf("http://localhost:5173/editor?room=%s", roomID),
+		fmt.Sprintf("https://notedown-vvtl.onrender.com/editor?room=%s", roomID),
 		http.StatusFound,
 	)
 
-	// Log the authenticated user
-	fmt.Println(user)
-
-	// Redirect the user after authentication
-	http.Redirect(w, r, "http://localhost:5173/editor", http.StatusFound)
 }
 
 func main() {
