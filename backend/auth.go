@@ -33,5 +33,5 @@ func NewAuth() {
 
 	gothic.Store = store
 
-	goth.UseProviders(google.New(googleClientID, googleClientSecret, "http://localhost:3000/auth/google/callback"))
+	goth.UseProviders(google.New(googleClientID, googleClientSecret, "https://backend-ph82.onrender.com/auth/google/callback"))
 }
