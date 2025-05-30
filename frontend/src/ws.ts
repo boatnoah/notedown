@@ -76,11 +76,12 @@ export function initEditor() {
     }
   });
 
-  // 5) WebSocket & Yjs setup
-  const protocol = location.protocol === "https:" ? "wss" : "ws";
-  const socket = new WebSocket(
-    `${protocol}://${location.host}/ws?room=${encodeURIComponent(room)}`,
-  );
+  // src/ws.ts
+  const apiOrigin = import.meta.env.VITE_WS_URL || window.location.origin;
+  const wsScheme = apiOrigin.startsWith("https") ? "wss" : "ws";
+  // strip off any path, leaving just host:port
+  const host = new URL(apiOrigin).host;
+  const socket = new WebSocket(`${wsScheme}://${host}/ws?room=${room}`);
 
   const ydoc = new Y.Doc();
   const yText = ydoc.getText("markdown");
