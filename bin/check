@@ -27,6 +27,16 @@ skip() {
 }
 
 echo
+echo "▶ secrets"
+cd "$ROOT"
+if command -v gitleaks &>/dev/null; then
+  BASE="$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD main)"
+  run "staged changes"  gitleaks detect --staged --source .
+  run "branch commits"  gitleaks git --log-opts="${BASE}..HEAD"
+else
+  skip "gitleaks" "not installed — brew install gitleaks"
+fi
+
 echo "▶ backend"
 cd "$ROOT/backend"
 run "go vet"  go vet ./...
