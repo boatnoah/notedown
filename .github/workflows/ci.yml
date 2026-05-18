@@ -75,7 +75,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version-file: backend/go.mod
+          go-version: stable
           cache-dependency-path: backend/go.sum
 
       - name: Create Neon branch
