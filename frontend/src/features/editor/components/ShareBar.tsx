@@ -1,30 +1,30 @@
 type ShareBarProps = {
-  onDownload: () => void;
-};
+  onDownload: () => void
+}
 
 export function ShareBar({ onDownload }: ShareBarProps) {
-  const shareUrl = window.location.href;
+  const shareUrl = window.location.href
 
   const copyLink = () => {
     navigator.clipboard
       .writeText(shareUrl)
-      .then(() => alert("Link copied to clipboard!"))
-      .catch(() => prompt("Copy this URL:", shareUrl));
-  };
+      .then(() => alert('Link copied to clipboard!'))
+      .catch(() => prompt('Copy this URL:', shareUrl))
+  }
 
   const shareNative = async () => {
     if (navigator.share) {
       try {
-        await navigator.share({ title: "Notedown", url: shareUrl });
+        await navigator.share({ title: 'Notedown', url: shareUrl })
       } catch (err) {
-        if (err instanceof Error && err.name !== "AbortError") {
-          copyLink();
+        if (err instanceof Error && err.name !== 'AbortError') {
+          copyLink()
         }
       }
-      return;
+      return
     }
-    copyLink();
-  };
+    copyLink()
+  }
 
   return (
     <div className="share-container">
@@ -34,7 +34,7 @@ export function ShareBar({ onDownload }: ShareBarProps) {
         <button type="button" onClick={copyLink}>
           Copy
         </button>
-        {typeof navigator.share === "function" && (
+        {typeof navigator.share === 'function' && (
           <button type="button" onClick={shareNative}>
             Share
           </button>
@@ -44,5 +44,5 @@ export function ShareBar({ onDownload }: ShareBarProps) {
         </button>
       </div>
     </div>
-  );
+  )
 }

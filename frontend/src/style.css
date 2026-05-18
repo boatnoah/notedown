@@ -40,7 +40,7 @@ body {
 
 #preview {
   white-space: pre-wrap;
-  font-family: "Fira Code", monospace;
+  font-family: 'Fira Code', monospace;
   font-size: 16px;
   color: #333;
 }

@@ -87,6 +87,9 @@ jobs:
           api_key: ${{ secrets.NEON_API_KEY }}
           branch_name: preview/pr-${{ github.event.number }}
 
+      - name: gofmt
+        run: test -z "$(gofmt -l ./..)"
+
       - run: go vet ./...
 
       - run: go test ./...
@@ -126,6 +129,8 @@ jobs:
       - run: npm ci
 
       - run: npm audit --audit-level=high
+
+      - run: npx prettier --check .
 
       - run: npx tsc --noEmit
 
