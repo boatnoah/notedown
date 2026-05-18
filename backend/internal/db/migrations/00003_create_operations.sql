@@ -3,7 +3,7 @@ CREATE TABLE operations (
     id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     document_id UUID        NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
     kind        TEXT        NOT NULL CHECK (kind IN ('insert', 'delete')),
-    offset      INTEGER     NOT NULL,
+    char_offset INTEGER     NOT NULL,
     length      INTEGER     NOT NULL DEFAULT 0,
     text        TEXT        NOT NULL DEFAULT '',
     version     BIGINT      NOT NULL,
