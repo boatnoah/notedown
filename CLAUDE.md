@@ -1,1 +1,1 @@
-See `agents.md`.
+See `AGENTS.md`.
