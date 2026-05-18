@@ -9,6 +9,7 @@ import (
 	"github.com/boatnoah/notedown/internal/auth"
 	"github.com/boatnoah/notedown/internal/config"
 	"github.com/boatnoah/notedown/internal/crdt"
+	"github.com/boatnoah/notedown/internal/db"
 	"github.com/boatnoah/notedown/internal/documents"
 	"github.com/boatnoah/notedown/internal/realtime"
 	"github.com/boatnoah/notedown/internal/server"
@@ -19,6 +20,12 @@ func main() {
 	_ = godotenv.Load()
 
 	cfg := config.Load()
+
+	database, err := db.Open(cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("database: %v", err)
+	}
+	defer database.Close()
 
 	docRepo := memory.NewDocumentRepository()
 	opRepo := memory.NewOperationRepository()

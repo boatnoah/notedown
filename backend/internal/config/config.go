@@ -9,6 +9,7 @@ import (
 type Config struct {
 	HTTPAddr           string
 	FrontendURL        string
+	DatabaseURL        string
 	AuthCallbackURL    string
 	GoogleClientID     string
 	GoogleClientSecret string
@@ -17,10 +18,17 @@ type Config struct {
 
 // Load reads configuration from environment variables. Defaults are provided
 // for local development so the server can start without extensive setup.
+// Missing DATABASE_URL is a fatal error — the server cannot run without a database.
 func Load() Config {
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		log.Fatal("DATABASE_URL is required")
+	}
+
 	cfg := Config{
 		HTTPAddr:           getEnv("HTTP_ADDR", ":3000"),
 		FrontendURL:        getEnv("FRONTEND_URL", "http://localhost:5173"),
+		DatabaseURL:        dbURL,
 		AuthCallbackURL:    getEnv("AUTH_CALLBACK_URL", "http://localhost:3000/auth/google/callback"),
 		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
