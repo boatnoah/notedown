@@ -1,16 +1,19 @@
-// vite.config.ts
+import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 export default defineConfig({
+  plugins: [react()],
   server: {
     proxy: {
-      // WebSockets
       "/ws": {
         target: "ws://localhost:3000",
         ws: true,
       },
-      // HTTP (OAuth, APIs, etc.)
       "/auth": {
+        target: "http://localhost:3000",
+        changeOrigin: true,
+      },
+      "/documents": {
         target: "http://localhost:3000",
         changeOrigin: true,
       },
