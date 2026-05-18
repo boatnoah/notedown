@@ -64,7 +64,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
 
       - name: Create Neon branch
@@ -82,6 +82,7 @@ jobs:
       - uses: golangci/golangci-lint-action@v6
         with:
           working-directory: backend
+          version: latest
 
       - name: Delete Neon branch
         if: env.NEON_API_KEY != '' && github.event_name == 'pull_request' && github.event.action == 'closed'
