@@ -8,6 +8,7 @@ Issues live in GitHub Issues. See `docs/agents/issue-tracker.md`.
 
 - Run `bin/scan-secrets` from the repo root before opening a PR. If it finds anything, stop immediately — do not push.
 - Run `bin/check` from the repo root and confirm it passes before opening a PR.
+- **Formatting must be clean before committing.** Run `gofmt -w ./..` in `backend/` and `npx prettier --write .` in `frontend/` if needed. CI will fail on unformatted code.
 - Title must follow Conventional Commits (`type(scope): summary`, ≤70 chars).
 - Body **must** follow `.github/pull_request_template.md` — CI will fail if required sections are missing.
   - Required: `## Summary`, `## Test plan`, `Closes #<issue-number>`

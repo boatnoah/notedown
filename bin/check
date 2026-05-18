@@ -35,7 +35,7 @@ if ! command -v gitleaks &>/dev/null && command -v brew &>/dev/null; then
 fi
 if command -v gitleaks &>/dev/null; then
   BASE="$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD main)"
-  run "staged changes"  gitleaks detect --staged --source .
+  run "staged changes"  gitleaks protect --staged
   run "branch commits"  gitleaks git --log-opts="${BASE}..HEAD"
 else
   skip "gitleaks" "not installed and brew unavailable"
@@ -43,6 +43,7 @@ fi
 
 echo "▶ backend"
 cd "$ROOT/backend"
+run "gofmt"   bash -c '[ -z "$(gofmt -l ./..)" ]'
 run "go vet"  go vet ./...
 run "go test" go test ./...
 if command -v golangci-lint &>/dev/null; then
@@ -53,7 +54,8 @@ fi
 
 echo "▶ frontend"
 cd "$ROOT/frontend"
-run "tsc"        npx tsc --noEmit
+run "prettier" npx prettier --check .
+run "tsc"      npx tsc --noEmit
 run "vite build" npm run build
 
 echo "----------------------------------------"

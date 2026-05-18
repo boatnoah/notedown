@@ -1,9 +1,9 @@
-import { getBackendOrigin } from "../../../lib/config";
+import { getBackendOrigin } from '../../../lib/config'
 
 export function LoginPage() {
   const signIn = () => {
-    window.location.href = `${getBackendOrigin()}/auth/google`;
-  };
+    window.location.href = `${getBackendOrigin()}/auth/google`
+  }
 
   return (
     <div>
@@ -12,5 +12,5 @@ export function LoginPage() {
         Sign in with Google
       </button>
     </div>
-  );
+  )
 }

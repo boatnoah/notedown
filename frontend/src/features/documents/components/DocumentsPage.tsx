@@ -5,5 +5,5 @@ export function DocumentsPage() {
       <h1>Your documents</h1>
       <p>Document list coming soon.</p>
     </div>
-  );
+  )
 }

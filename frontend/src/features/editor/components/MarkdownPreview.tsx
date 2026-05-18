@@ -1,31 +1,31 @@
-import DOMPurify from "dompurify";
-import { useEffect, useRef } from "react";
-import { marked } from "marked";
+import DOMPurify from 'dompurify'
+import { useEffect, useRef } from 'react'
+import { marked } from 'marked'
 
 type MarkdownPreviewProps = {
-  markdown: string;
-};
+  markdown: string
+}
 
 function renderHtml(el: HTMLElement, html: string) {
-  el.innerHTML = DOMPurify.sanitize(html);
+  el.innerHTML = DOMPurify.sanitize(html)
 }
 
 export function MarkdownPreview({ markdown }: MarkdownPreviewProps) {
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const el = ref.current;
+    const el = ref.current
     if (!el) {
-      return;
+      return
     }
 
-    const rendered = marked.parse(markdown);
+    const rendered = marked.parse(markdown)
     if (rendered instanceof Promise) {
-      rendered.then((html) => renderHtml(el, html));
+      rendered.then((html) => renderHtml(el, html))
     } else {
-      renderHtml(el, rendered);
+      renderHtml(el, rendered)
     }
-  }, [markdown]);
+  }, [markdown])
 
-  return <div ref={ref} id="preview" />;
+  return <div ref={ref} id="preview" />
 }
