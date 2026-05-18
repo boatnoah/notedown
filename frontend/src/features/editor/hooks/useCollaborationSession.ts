@@ -14,6 +14,15 @@ type UseCollaborationSessionOptions = {
   onConnectionLost: () => void;
 };
 
+function flushPendingOps(socket: WebSocket, pending: Operation[]) {
+  while (pending.length) {
+    const next = pending.shift();
+    if (next) {
+      socket.send(JSON.stringify({ type: "operation", operation: next }));
+    }
+  }
+}
+
 export function useCollaborationSession({
   documentId,
   initialVersion,
@@ -25,6 +34,7 @@ export function useCollaborationSession({
 }: UseCollaborationSessionOptions) {
   const pendingOpsRef = useRef<Operation[]>([]);
   const latestVersionRef = useRef(initialVersion);
+  const awaitingSyncRef = useRef(true);
 
   const sendOperation = useCallback(
     (op: Operation) => {
@@ -38,17 +48,21 @@ export function useCollaborationSession({
       }
       socket.send(JSON.stringify({ type: "operation", operation: op }));
     },
-    [socketRef],
+    [socketRef, isApplyingRemoteRef],
   );
 
   const handleServerMessage = useCallback(
-    (msg: ServerMessage) => {
+    (msg: ServerMessage, socket: WebSocket) => {
       if (msg.type === "snapshot") {
-        if (msg.snapshot.version <= latestVersionRef.current) {
-          return;
+        if (msg.snapshot.version > latestVersionRef.current) {
+          latestVersionRef.current = msg.snapshot.version;
+          onSnapshot(msg.snapshot.content, msg.snapshot.version);
         }
-        latestVersionRef.current = msg.snapshot.version;
-        onSnapshot(msg.snapshot.content, msg.snapshot.version);
+
+        if (awaitingSyncRef.current) {
+          awaitingSyncRef.current = false;
+          flushPendingOps(socket, pendingOpsRef.current);
+        }
         return;
       }
 
@@ -71,12 +85,7 @@ export function useCollaborationSession({
     socketRef.current = socket;
 
     socket.addEventListener("open", () => {
-      while (pendingOpsRef.current.length) {
-        const next = pendingOpsRef.current.shift();
-        if (next) {
-          socket.send(JSON.stringify({ type: "operation", operation: next }));
-        }
-      }
+      awaitingSyncRef.current = true;
       socket.send(JSON.stringify({ type: "sync" }));
     });
 
@@ -86,7 +95,7 @@ export function useCollaborationSession({
         console.error("Invalid WebSocket message");
         return;
       }
-      handleServerMessage(msg);
+      handleServerMessage(msg, socket);
     });
 
     socket.addEventListener("close", onConnectionLost);

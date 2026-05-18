@@ -12,18 +12,18 @@ export function ShareBar({ onDownload }: ShareBarProps) {
       .catch(() => prompt("Copy this URL:", shareUrl));
   };
 
-  const saveLink = () => {
-    if (navigator.clipboard) {
-      navigator.clipboard
-        .writeText(shareUrl)
-        .then(() => alert("URL copied! Now paste into your bookmarks bar."))
-        .catch(() => alert(`Here's the URL:\n${shareUrl}`));
-    } else {
-      window.prompt(
-        "Copy this URL and press Ctrl+D (or ⌘+D) to bookmark:",
-        shareUrl,
-      );
+  const shareNative = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "Notedown", url: shareUrl });
+      } catch (err) {
+        if (err instanceof Error && err.name !== "AbortError") {
+          copyLink();
+        }
+      }
+      return;
     }
+    copyLink();
   };
 
   return (
@@ -34,9 +34,11 @@ export function ShareBar({ onDownload }: ShareBarProps) {
         <button type="button" onClick={copyLink}>
           Copy
         </button>
-        <button type="button" onClick={saveLink}>
-          Save Link
-        </button>
+        {typeof navigator.share === "function" && (
+          <button type="button" onClick={shareNative}>
+            Share
+          </button>
+        )}
         <button type="button" onClick={onDownload}>
           Save to Machine
         </button>

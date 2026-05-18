@@ -1,9 +1,14 @@
+import DOMPurify from "dompurify";
 import { useEffect, useRef } from "react";
 import { marked } from "marked";
 
 type MarkdownPreviewProps = {
   markdown: string;
 };
+
+function renderHtml(el: HTMLElement, html: string) {
+  el.innerHTML = DOMPurify.sanitize(html);
+}
 
 export function MarkdownPreview({ markdown }: MarkdownPreviewProps) {
   const ref = useRef<HTMLDivElement>(null);
@@ -16,11 +21,9 @@ export function MarkdownPreview({ markdown }: MarkdownPreviewProps) {
 
     const rendered = marked.parse(markdown);
     if (rendered instanceof Promise) {
-      rendered.then((html) => {
-        el.innerHTML = html;
-      });
+      rendered.then((html) => renderHtml(el, html));
     } else {
-      el.innerHTML = rendered;
+      renderHtml(el, rendered);
     }
   }, [markdown]);
 

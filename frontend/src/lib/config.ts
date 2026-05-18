@@ -1,7 +1,5 @@
-const envBackend =
-  (import.meta.env.VITE_API_URL as string | undefined) ||
-  (import.meta.env.VITE_WS_URL as string | undefined) ||
-  "";
+const apiUrl = import.meta.env.VITE_API_URL as string | undefined;
+const wsUrl = import.meta.env.VITE_WS_URL as string | undefined;
 
 function defaultBackendOrigin(): string {
   if (typeof window === "undefined") {
@@ -21,14 +19,20 @@ function normalizeUrl(url: string): string {
 }
 
 export function getBackendOrigin(): string {
-  if (envBackend) {
-    return normalizeUrl(envBackend);
+  if (apiUrl) {
+    return normalizeUrl(apiUrl);
   }
 
   return normalizeUrl(defaultBackendOrigin());
 }
 
 export function getWebSocketUrl(documentId: string): string {
+  if (wsUrl) {
+    const url = new URL(normalizeUrl(wsUrl));
+    url.searchParams.set("documentId", documentId);
+    return url.toString();
+  }
+
   const backend = new URL(getBackendOrigin());
   const protocol = backend.protocol === "https:" ? "wss" : "ws";
   const query = new URLSearchParams({ documentId }).toString();
