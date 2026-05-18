@@ -7,9 +7,6 @@ linters:
     - gosimple
     - ineffassign
 
-linters-settings:
-  govet:
-    enable-all: true
 
 issues:
   max-same-issues: 0
