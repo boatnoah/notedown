@@ -1,0 +1,22 @@
+# See https://github.com/cosmtrek/air for config reference
+root = "."
+tmp_dir = "tmp"
+
+[build]
+# Build the API binary from cmd/api into the tmp directory for hot reloads.
+cmd = "go build -o ./tmp/notedown ./cmd/api"
+bin = "./tmp/notedown"
+full_bin = ""
+include_ext = ["go"]
+exclude_dir = ["bin", "tmp"]
+include_dir = ["cmd", "internal", "pkg"]
+exclude_regex = []
+exclude_unchanged = false
+send_interrupt = false
+kill_delay = "0s"
+
+[log]
+time = true
+
+[misc]
+clean_on_exit = true

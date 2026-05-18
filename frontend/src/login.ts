@@ -1,3 +1,5 @@
+import { getBackendOrigin } from "./config";
+
 // src/auth.ts
 export function initAuth() {
   const root = document.getElementById("app")!;
@@ -7,6 +9,6 @@ export function initAuth() {
   `;
 
   document.getElementById("btn-google")!.addEventListener("click", () => {
-    window.location.href = "https://backend-ph82.onrender.com/auth/google";
+    window.location.href = `${getBackendOrigin()}/auth/google`;
   });
 }
