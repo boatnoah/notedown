@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PASS=0
+FAIL=0
+SKIP=0
+
+run() {
+  local label="$1"; shift
+  echo "  running $label..."
+  if "$@" 2>&1 | sed 's/^/    /'; then
+    echo "  ✓ $label"
+    ((PASS++))
+  else
+    echo "  ✗ $label"
+    ((FAIL++))
+  fi
+  echo
+}
+
+skip() {
+  local label="$1"; shift
+  echo "  - $label (skipped — $*)"
+  ((SKIP++))
+  echo
+}
+
+echo
+echo "▶ backend"
+cd "$ROOT/backend"
+run "go vet"  go vet ./...
+run "go test" go test ./...
+if command -v golangci-lint &>/dev/null; then
+  run "golangci-lint" golangci-lint run
+else
+  skip "golangci-lint" "not installed — brew install golangci-lint"
+fi
+
+echo "▶ frontend"
+cd "$ROOT/frontend"
+run "tsc"        npx tsc --noEmit
+run "vite build" npm run build
+
+echo "----------------------------------------"
+printf "  passed: %d  failed: %d" "$PASS" "$FAIL"
+[ "$SKIP" -gt 0 ] && printf "  skipped: %d" "$SKIP"
+echo -e "\n"
+
+[ "$FAIL" -eq 0 ]
