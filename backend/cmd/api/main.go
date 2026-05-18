@@ -27,6 +27,7 @@ func main() {
 	}
 	defer func() { _ = database.Close() }()
 
+	// Repositories are still in-memory until issue #4 adds Postgres adapters.
 	docRepo := memory.NewDocumentRepository()
 	opRepo := memory.NewOperationRepository()
 	sessionRepo := memory.NewSessionRepository()

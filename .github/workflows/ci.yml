@@ -68,6 +68,7 @@ jobs:
           cache-dependency-path: backend/go.sum
 
       - name: Create Neon branch
+        id: neon-branch
         if: env.NEON_API_KEY != '' && github.event_name == 'pull_request' && github.event.action != 'closed'
         uses: neondatabase/create-branch-action@v5
         with:
@@ -76,8 +77,12 @@ jobs:
           branch_name: preview/pr-${{ github.event.number }}
 
       - run: go vet ./...
+        env:
+          DATABASE_URL: ${{ steps.neon-branch.outputs.db_url }}
 
       - run: go test ./...
+        env:
+          DATABASE_URL: ${{ steps.neon-branch.outputs.db_url }}
 
       - uses: golangci/golangci-lint-action@v7
         with:

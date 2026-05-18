@@ -1,4 +1,6 @@
 -- +goose Up
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 CREATE TYPE pfp_preset AS ENUM ('blue', 'green', 'red', 'yellow', 'purple', 'orange');
 
 CREATE TABLE users (
