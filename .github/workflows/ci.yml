@@ -7,6 +7,26 @@ on:
     branches: [main]
 
 jobs:
+  pr-body:
+    name: pr-body
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR body
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          missing=()
+          echo "$PR_BODY" | grep -q "## Summary"   || missing+=("'## Summary'")
+          echo "$PR_BODY" | grep -q "## Test plan" || missing+=("'## Test plan'")
+          echo "$PR_BODY" | grep -qE "Closes #[0-9]+" || missing+=("'Closes #<number>'")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "PR body missing required sections: ${missing[*]}"
+            echo "See .github/pull_request_template.md"
+            exit 1
+          fi
+          echo "PR body OK."
+
   pr-title:
     name: pr-title
     if: github.event_name == 'pull_request'
