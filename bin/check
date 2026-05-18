@@ -29,12 +29,16 @@ skip() {
 echo
 echo "▶ secrets"
 cd "$ROOT"
+if ! command -v gitleaks &>/dev/null && command -v brew &>/dev/null; then
+  echo "  installing gitleaks..."
+  brew install gitleaks >/dev/null
+fi
 if command -v gitleaks &>/dev/null; then
   BASE="$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD main)"
   run "staged changes"  gitleaks detect --staged --source .
   run "branch commits"  gitleaks git --log-opts="${BASE}..HEAD"
 else
-  skip "gitleaks" "not installed — brew install gitleaks"
+  skip "gitleaks" "not installed and brew unavailable"
 fi
 
 echo "▶ backend"
