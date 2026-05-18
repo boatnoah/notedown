@@ -7,6 +7,17 @@ on:
     branches: [main]
 
 jobs:
+  secrets:
+    name: secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   pr-body:
     name: pr-body
     if: github.event_name == 'pull_request'
@@ -64,7 +75,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version-file: backend/go.mod
+          go-version: stable
           cache-dependency-path: backend/go.sum
 
       - name: Create Neon branch
@@ -79,6 +90,9 @@ jobs:
       - run: go vet ./...
 
       - run: go test ./...
+
+      - name: govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest && govulncheck ./...
 
       - uses: golangci/golangci-lint-action@v7
         with:
@@ -110,6 +124,8 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - run: npm ci
+
+      - run: npm audit --audit-level=high
 
       - run: npx tsc --noEmit
 
