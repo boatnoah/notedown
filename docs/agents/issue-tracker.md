@@ -20,3 +20,32 @@ Create a GitHub issue.
 ## When a skill says "fetch the relevant ticket"
 
 Run `gh issue view <number> --comments`.
+
+## Pull request rules
+
+These rules apply whenever an agent opens or updates a PR.
+
+**Title — Conventional Commits, ≤70 chars:**
+```
+<type>(<scope>): <summary>
+```
+Common types: `feat`, `fix`, `ci`, `docs`, `refactor`, `test`, `chore`. The title becomes the squash-merge commit message, so it must be accurate and follow this format exactly.
+
+**Body — always include a closing reference:**
+```
+Closes #<issue-number>
+```
+Place it at the end of the PR body. GitHub will auto-close the linked issue on merge.
+
+**Full body template:**
+```markdown
+## Summary
+- <bullet>
+
+## Test plan
+- [ ] <item>
+
+Closes #<issue-number>
+```
+
+**Squash and merge is enforced** — the PR title is the only commit message that lands on `main`. Keep it precise.
