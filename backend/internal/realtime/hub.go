@@ -250,7 +250,7 @@ func (c *Client) readLoop() {
 }
 
 func (c *Client) writeLoop() {
-	defer c.conn.Close()
+	defer func() { _ = c.conn.Close() }()
 	for payload := range c.send {
 		if err := c.conn.WriteMessage(websocket.TextMessage, payload); err != nil {
 			return

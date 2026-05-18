@@ -7,6 +7,26 @@ on:
     branches: [main]
 
 jobs:
+  pr-body:
+    name: pr-body
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR body
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          missing=()
+          echo "$PR_BODY" | grep -q "## Summary"   || missing+=("'## Summary'")
+          echo "$PR_BODY" | grep -q "## Test plan" || missing+=("'## Test plan'")
+          echo "$PR_BODY" | grep -qE "Closes #[0-9]+" || missing+=("'Closes #<number>'")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "PR body missing required sections: ${missing[*]}"
+            echo "See .github/pull_request_template.md"
+            exit 1
+          fi
+          echo "PR body OK."
+
   pr-title:
     name: pr-title
     if: github.event_name == 'pull_request'
@@ -44,10 +64,11 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
 
       - name: Create Neon branch
+        id: neon-branch
         if: env.NEON_API_KEY != '' && github.event_name == 'pull_request' && github.event.action != 'closed'
         uses: neondatabase/create-branch-action@v5
         with:
@@ -59,9 +80,10 @@ jobs:
 
       - run: go test ./...
 
-      - uses: golangci/golangci-lint-action@v6
+      - uses: golangci/golangci-lint-action@v7
         with:
           working-directory: backend
+          version: v2.12.2
 
       - name: Delete Neon branch
         if: env.NEON_API_KEY != '' && github.event_name == 'pull_request' && github.event.action == 'closed'

@@ -9,6 +9,7 @@ import (
 	"github.com/boatnoah/notedown/internal/auth"
 	"github.com/boatnoah/notedown/internal/config"
 	"github.com/boatnoah/notedown/internal/crdt"
+	"github.com/boatnoah/notedown/internal/db"
 	"github.com/boatnoah/notedown/internal/documents"
 	"github.com/boatnoah/notedown/internal/realtime"
 	"github.com/boatnoah/notedown/internal/server"
@@ -20,6 +21,13 @@ func main() {
 
 	cfg := config.Load()
 
+	database, err := db.Open(cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("database: %v", err)
+	}
+	defer func() { _ = database.Close() }()
+
+	// Repositories are still in-memory until issue #4 adds Postgres adapters.
 	docRepo := memory.NewDocumentRepository()
 	opRepo := memory.NewOperationRepository()
 	sessionRepo := memory.NewSessionRepository()
