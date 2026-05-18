@@ -82,7 +82,7 @@ jobs:
       - uses: golangci/golangci-lint-action@v6
         with:
           working-directory: backend
-          version: latest
+          version: v2.12.2
 
       - name: Delete Neon branch
         if: env.NEON_API_KEY != '' && github.event_name == 'pull_request' && github.event.action == 'closed'
