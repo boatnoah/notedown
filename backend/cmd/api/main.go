@@ -25,7 +25,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("database: %v", err)
 	}
-	defer database.Close()
+	defer func() { _ = database.Close() }()
 
 	docRepo := memory.NewDocumentRepository()
 	opRepo := memory.NewOperationRepository()

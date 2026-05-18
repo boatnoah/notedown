@@ -20,18 +20,18 @@ func Open(databaseURL string) (*sql.DB, error) {
 	}
 
 	if err := db.Ping(); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("ping db: %w", err)
 	}
 
 	goose.SetBaseFS(embedMigrations)
 	if err := goose.SetDialect("postgres"); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("set goose dialect: %w", err)
 	}
 
 	if err := goose.Up(db, "migrations"); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("run migrations: %w", err)
 	}
 
