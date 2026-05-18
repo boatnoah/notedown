@@ -1,0 +1,12 @@
+linters:
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - unused
+    - gosimple
+    - ineffassign
+
+
+issues:
+  max-same-issues: 0
