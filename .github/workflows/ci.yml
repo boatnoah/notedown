@@ -7,6 +7,29 @@ on:
     branches: [main]
 
 jobs:
+  pr-title:
+    name: pr-title
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            ci
+            docs
+            refactor
+            test
+            chore
+            style
+            perf
+            build
+            revert
+          requireScope: false
+
   backend:
     name: backend
     runs-on: ubuntu-latest
