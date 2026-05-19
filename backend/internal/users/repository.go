@@ -13,8 +13,10 @@ var (
 )
 
 // Repository defines persistence operations for user accounts.
-// Create is the source of truth for uniqueness — it must return ErrDuplicateEmail
-// or ErrDuplicateUsername when a conflict is detected (under a lock or DB constraint).
+//
+// Create contract: implementations must (1) populate user.ID and user.CreatedAt
+// before returning, (2) enforce email+username uniqueness, returning
+// ErrDuplicateEmail or ErrDuplicateUsername on conflict.
 type Repository interface {
 	Create(ctx context.Context, user *types.User, passwordHash string) error
 }

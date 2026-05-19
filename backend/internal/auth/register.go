@@ -25,10 +25,6 @@ type registerRequest struct {
 	Pfp      types.PfpPreset `json:"pfp"`
 }
 
-type registerResponse struct {
-	User *types.User `json:"user"`
-}
-
 func (h *RegisterHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -51,7 +47,7 @@ func (h *RegisterHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(registerResponse{User: user})
+	_ = json.NewEncoder(w).Encode(user)
 }
 
 func registerErrorStatus(err error) (int, string) {

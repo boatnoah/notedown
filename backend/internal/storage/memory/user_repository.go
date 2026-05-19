@@ -17,6 +17,8 @@ type UserRepository struct {
 	hashes map[string]string // id -> password_hash
 }
 
+var _ users.Repository = (*UserRepository)(nil)
+
 func NewUserRepository() *UserRepository {
 	return &UserRepository{
 		byID:   make(map[string]*types.User),
