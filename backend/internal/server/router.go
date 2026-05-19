@@ -17,6 +17,7 @@ import (
 // Dependencies enumerates collaborators needed to wire the HTTP server.
 type Dependencies struct {
 	AuthHandler     *auth.Handler
+	RegisterHandler *auth.RegisterHandler
 	DocumentService *documents.Service
 	RealtimeHub     *realtime.Hub
 }
@@ -43,6 +44,7 @@ func NewRouter(deps Dependencies) http.Handler {
 	})
 
 	r.Route("/auth", func(r chi.Router) {
+		r.Post("/register", deps.RegisterHandler.ServeHTTP)
 		r.Get("/{provider}", deps.AuthHandler.BeginAuth)
 		r.Get("/{provider}/callback", deps.AuthHandler.Callback)
 	})
