@@ -2,6 +2,7 @@ package users_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/boatnoah/notedown/internal/storage/memory"
@@ -42,7 +43,7 @@ func TestRegister_InvalidEmail(t *testing.T) {
 	in := validInput()
 	in.Email = "not-an-email"
 	_, err := svc.Register(context.Background(), in)
-	if err != users.ErrInvalidEmail {
+	if !errors.Is(err, users.ErrInvalidEmail) {
 		t.Errorf("got %v, want ErrInvalidEmail", err)
 	}
 }
@@ -52,7 +53,7 @@ func TestRegister_ShortPassword(t *testing.T) {
 	in := validInput()
 	in.Password = "short"
 	_, err := svc.Register(context.Background(), in)
-	if err != users.ErrWeakPassword {
+	if !errors.Is(err, users.ErrWeakPassword) {
 		t.Errorf("got %v, want ErrWeakPassword", err)
 	}
 }
@@ -62,7 +63,7 @@ func TestRegister_InvalidPfp(t *testing.T) {
 	in := validInput()
 	in.Pfp = types.PfpPreset("neon-pink")
 	_, err := svc.Register(context.Background(), in)
-	if err != users.ErrInvalidPfp {
+	if !errors.Is(err, users.ErrInvalidPfp) {
 		t.Errorf("got %v, want ErrInvalidPfp", err)
 	}
 }
@@ -75,7 +76,7 @@ func TestRegister_DuplicateEmail(t *testing.T) {
 	in := validInput()
 	in.Username = "alice2"
 	_, err := svc.Register(context.Background(), in)
-	if err != users.ErrDuplicateEmail {
+	if !errors.Is(err, users.ErrDuplicateEmail) {
 		t.Errorf("got %v, want ErrDuplicateEmail", err)
 	}
 }
@@ -88,7 +89,7 @@ func TestRegister_DuplicateUsername(t *testing.T) {
 	in := validInput()
 	in.Email = "other@example.com"
 	_, err := svc.Register(context.Background(), in)
-	if err != users.ErrDuplicateUsername {
+	if !errors.Is(err, users.ErrDuplicateUsername) {
 		t.Errorf("got %v, want ErrDuplicateUsername", err)
 	}
 }
@@ -96,7 +97,7 @@ func TestRegister_DuplicateUsername(t *testing.T) {
 func TestRegister_MissingFields(t *testing.T) {
 	svc := newService()
 	_, err := svc.Register(context.Background(), users.RegisterInput{})
-	if err != users.ErrMissingFields {
+	if !errors.Is(err, users.ErrMissingFields) {
 		t.Errorf("got %v, want ErrMissingFields", err)
 	}
 }

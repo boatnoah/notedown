@@ -25,7 +25,11 @@ type registerRequest struct {
 	Pfp      types.PfpPreset `json:"pfp"`
 }
 
+const maxRequestBytes = 64 * 1024 // 64 KB — generous for a registration payload
+
 func (h *RegisterHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBytes)
+
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
