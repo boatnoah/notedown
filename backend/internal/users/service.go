@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/mail"
+	"unicode/utf8"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -44,7 +45,7 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*types.User, 
 	}
 	email := addr.Address // strip any display-name wrapping
 
-	if len(in.Password) < 8 {
+	if utf8.RuneCountInString(in.Password) < 8 {
 		return nil, ErrWeakPassword
 	}
 
