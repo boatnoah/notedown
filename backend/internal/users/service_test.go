@@ -100,3 +100,29 @@ func TestRegister_MissingFields(t *testing.T) {
 		t.Errorf("got %v, want ErrMissingFields", err)
 	}
 }
+
+func TestRegister_DefaultPfp(t *testing.T) {
+	svc := newService()
+	in := validInput()
+	in.Pfp = ""
+	user, err := svc.Register(context.Background(), in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if user.Pfp != types.PfpBlue {
+		t.Errorf("got pfp %q, want %q", user.Pfp, types.PfpBlue)
+	}
+}
+
+func TestRegister_DisplayNameEmail(t *testing.T) {
+	svc := newService()
+	in := validInput()
+	in.Email = "Alice <alice@example.com>"
+	user, err := svc.Register(context.Background(), in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if user.Email != "alice@example.com" {
+		t.Errorf("got email %q, want bare alice@example.com", user.Email)
+	}
+}

@@ -37,30 +37,22 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*types.User, 
 	if in.Name == "" || in.Email == "" || in.Username == "" || in.Password == "" {
 		return nil, ErrMissingFields
 	}
-	if _, err := mail.ParseAddress(in.Email); err != nil {
+
+	addr, err := mail.ParseAddress(in.Email)
+	if err != nil {
 		return nil, ErrInvalidEmail
 	}
+	email := addr.Address // strip any display-name wrapping
+
 	if len(in.Password) < 8 {
 		return nil, ErrWeakPassword
 	}
+
+	if in.Pfp == "" {
+		in.Pfp = types.PfpBlue
+	}
 	if !in.Pfp.Valid() {
 		return nil, ErrInvalidPfp
-	}
-
-	exists, err := s.repo.ExistsByEmail(ctx, in.Email)
-	if err != nil {
-		return nil, err
-	}
-	if exists {
-		return nil, ErrDuplicateEmail
-	}
-
-	exists, err = s.repo.ExistsByUsername(ctx, in.Username)
-	if err != nil {
-		return nil, err
-	}
-	if exists {
-		return nil, ErrDuplicateUsername
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
@@ -70,7 +62,7 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*types.User, 
 
 	user := &types.User{
 		Name:     in.Name,
-		Email:    in.Email,
+		Email:    email,
 		Username: in.Username,
 		Pfp:      in.Pfp,
 	}
