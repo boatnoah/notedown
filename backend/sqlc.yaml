@@ -1,0 +1,16 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "internal/storage/postgres/queries/"
+    schema: "internal/db/migrations/"
+    gen:
+      go:
+        package: "pgstore"
+        out: "internal/storage/postgres/pgstore"
+        overrides:
+          - db_type: "uuid"
+            go_type: "string"
+          - db_type: "pfp_preset"
+            go_type: "string"
+          - db_type: "share_mode"
+            go_type: "string"
