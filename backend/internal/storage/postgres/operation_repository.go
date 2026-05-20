@@ -6,8 +6,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/boatnoah/notedown/internal/crdt"
 	"github.com/boatnoah/notedown/internal/documents"
+	"github.com/boatnoah/notedown/internal/ot"
 	"github.com/boatnoah/notedown/internal/storage/postgres/pgstore"
 )
 
@@ -21,7 +21,7 @@ func NewOperationRepository(db *sql.DB) *OperationRepository {
 
 var _ documents.OperationRepository = (*OperationRepository)(nil)
 
-func (r *OperationRepository) Append(ctx context.Context, documentID string, op crdt.Operation) error {
+func (r *OperationRepository) Append(ctx context.Context, documentID string, op ot.Operation) error {
 	id := op.ID
 	if id == "" {
 		id = uuid.NewString()
@@ -37,16 +37,16 @@ func (r *OperationRepository) Append(ctx context.Context, documentID string, op 
 	})
 }
 
-func (r *OperationRepository) List(ctx context.Context, documentID string) ([]crdt.Operation, error) {
+func (r *OperationRepository) List(ctx context.Context, documentID string) ([]ot.Operation, error) {
 	rows, err := r.q.ListOperations(ctx, documentID)
 	if err != nil {
 		return nil, err
 	}
-	ops := make([]crdt.Operation, len(rows))
+	ops := make([]ot.Operation, len(rows))
 	for i, row := range rows {
-		ops[i] = crdt.Operation{
+		ops[i] = ot.Operation{
 			ID:        row.ID,
-			Kind:      crdt.OperationKind(row.Kind),
+			Kind:      ot.OperationKind(row.Kind),
 			Offset:    int(row.CharOffset),
 			Length:    int(row.Length),
 			Text:      row.Text,

@@ -3,7 +3,7 @@ package documents
 import (
 	"context"
 
-	"github.com/boatnoah/notedown/internal/crdt"
+	"github.com/boatnoah/notedown/internal/ot"
 	"github.com/boatnoah/notedown/pkg/types"
 )
 
@@ -16,8 +16,8 @@ type DocumentRepository interface {
 
 // OperationRepository stores the ordered list of CRDT operations for each document.
 type OperationRepository interface {
-	Append(ctx context.Context, documentID string, op crdt.Operation) error
-	List(ctx context.Context, documentID string) ([]crdt.Operation, error)
+	Append(ctx context.Context, documentID string, op ot.Operation) error
+	List(ctx context.Context, documentID string) ([]ot.Operation, error)
 }
 
 // SessionRepository tracks live collaborative sessions. Included for future

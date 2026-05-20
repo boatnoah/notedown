@@ -11,8 +11,8 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/gorilla/websocket"
 
-	"github.com/boatnoah/notedown/internal/crdt"
 	"github.com/boatnoah/notedown/internal/documents"
+	"github.com/boatnoah/notedown/internal/ot"
 )
 
 var upgrader = websocket.Upgrader{
@@ -142,14 +142,14 @@ type Client struct {
 }
 
 type inboundMessage struct {
-	Type      string          `json:"type"`
-	Operation *crdt.Operation `json:"operation,omitempty"`
-	Presence  *CursorPayload  `json:"presence,omitempty"`
+	Type      string         `json:"type"`
+	Operation *ot.Operation  `json:"operation,omitempty"`
+	Presence  *CursorPayload `json:"presence,omitempty"`
 }
 
 type outboundMessage struct {
-	Type     string        `json:"type"`
-	Snapshot crdt.Snapshot `json:"snapshot"`
+	Type     string      `json:"type"`
+	Snapshot ot.Snapshot `json:"snapshot"`
 }
 
 type errorMessage struct {

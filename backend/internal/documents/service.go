@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/boatnoah/notedown/internal/crdt"
+	"github.com/boatnoah/notedown/internal/ot"
 	"github.com/boatnoah/notedown/pkg/types"
 )
 
@@ -17,7 +17,7 @@ type Service struct {
 	docs     DocumentRepository
 	ops      OperationRepository
 	sessions SessionRepository
-	manager  *crdt.Manager
+	manager  *ot.Manager
 
 	loadMu sync.Mutex
 	loaded map[string]struct{}
@@ -28,7 +28,7 @@ type Deps struct {
 	Documents  DocumentRepository
 	Operations OperationRepository
 	Sessions   SessionRepository
-	Manager    *crdt.Manager
+	Manager    *ot.Manager
 }
 
 func NewService(deps Deps) *Service {
@@ -102,23 +102,23 @@ func (s *Service) CreateDocument(ctx context.Context, ownerID string) (*types.Do
 }
 
 // Snapshot returns the current canonical state for a document.
-func (s *Service) Snapshot(ctx context.Context, documentID string) (crdt.Snapshot, error) {
+func (s *Service) Snapshot(ctx context.Context, documentID string) (ot.Snapshot, error) {
 	if err := s.ensureLoaded(ctx, documentID); err != nil {
-		return crdt.Snapshot{}, err
+		return ot.Snapshot{}, err
 	}
 	return s.manager.Snapshot(documentID)
 }
 
 // ApplyOperation validates and merges a CRDT operation, returning the new
 // document snapshot once the canonical state has been updated.
-func (s *Service) ApplyOperation(ctx context.Context, documentID string, op crdt.Operation) (crdt.Snapshot, error) {
+func (s *Service) ApplyOperation(ctx context.Context, documentID string, op ot.Operation) (ot.Snapshot, error) {
 	if err := s.ensureLoaded(ctx, documentID); err != nil {
-		return crdt.Snapshot{}, err
+		return ot.Snapshot{}, err
 	}
 
 	snapshot, err := s.manager.Apply(documentID, op)
 	if err != nil {
-		return crdt.Snapshot{}, err
+		return ot.Snapshot{}, err
 	}
 
 	if s.ops != nil {

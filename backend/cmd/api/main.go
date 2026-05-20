@@ -8,9 +8,9 @@ import (
 
 	"github.com/boatnoah/notedown/internal/auth"
 	"github.com/boatnoah/notedown/internal/config"
-	"github.com/boatnoah/notedown/internal/crdt"
 	"github.com/boatnoah/notedown/internal/db"
 	"github.com/boatnoah/notedown/internal/documents"
+	"github.com/boatnoah/notedown/internal/ot"
 	"github.com/boatnoah/notedown/internal/realtime"
 	"github.com/boatnoah/notedown/internal/server"
 	"github.com/boatnoah/notedown/internal/storage/memory"
@@ -33,7 +33,7 @@ func main() {
 	opRepo := postgres.NewOperationRepository(database)
 	sessionRepo := memory.NewSessionRepository() // ephemeral WS presence sessions, not persisted
 	userRepo := postgres.NewUserRepository(database)
-	manager := crdt.NewManager()
+	manager := ot.NewManager()
 
 	docService := documents.NewService(documents.Deps{
 		Documents:  docRepo,
