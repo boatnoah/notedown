@@ -14,6 +14,7 @@ import (
 	"github.com/boatnoah/notedown/internal/realtime"
 	"github.com/boatnoah/notedown/internal/server"
 	"github.com/boatnoah/notedown/internal/storage/memory"
+	"github.com/boatnoah/notedown/internal/storage/postgres"
 	"github.com/boatnoah/notedown/internal/users"
 )
 
@@ -28,11 +29,10 @@ func main() {
 	}
 	defer func() { _ = database.Close() }()
 
-	// Repositories are still in-memory until issue #4 adds Postgres adapters.
-	docRepo := memory.NewDocumentRepository()
-	opRepo := memory.NewOperationRepository()
-	sessionRepo := memory.NewSessionRepository()
-	userRepo := memory.NewUserRepository()
+	docRepo := postgres.NewDocumentRepository(database)
+	opRepo := postgres.NewOperationRepository(database)
+	sessionRepo := memory.NewSessionRepository() // ephemeral WS presence sessions, not persisted
+	userRepo := postgres.NewUserRepository(database)
 	manager := crdt.NewManager()
 
 	docService := documents.NewService(documents.Deps{
