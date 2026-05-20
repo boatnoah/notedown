@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// OperationKind represents mutation types supported by the server CRDT.
+// OperationKind represents mutation types supported by the server OT.
 type OperationKind string
 
 const (
@@ -32,7 +32,7 @@ type Snapshot struct {
 	Content    string `json:"content"`
 }
 
-// Manager keeps the authoritative CRDT state per document.
+// Manager keeps the authoritative OT state per document.
 type Manager struct {
 	mu   sync.RWMutex
 	docs map[string]*docState
@@ -43,7 +43,7 @@ type docState struct {
 	Content []rune
 }
 
-// NewManager constructs an empty CRDT manager.
+// NewManager constructs an empty OT manager.
 func NewManager() *Manager {
 	return &Manager{docs: make(map[string]*docState)}
 }
