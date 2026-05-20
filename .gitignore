@@ -25,3 +25,6 @@ dist-ssr
 
 # api secrets
 .env
+
+# AI
+.claude/*

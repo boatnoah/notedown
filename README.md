@@ -14,12 +14,12 @@ A collaborative markdown editor. Multiple users edit the same document in real t
 
 ## Architecture
 
-| Layer | Stack |
-| --- | --- |
+| Layer        | Stack                                                                                         |
+| ------------ | --------------------------------------------------------------------------------------------- |
 | **Frontend** | React, Vite, TypeScript, TanStack Router, TanStack Query, Tailwind CSS, shadcn/ui, CodeMirror |
-| **Backend** | Go, chi, gorilla/websocket, Goose, sqlc, pgx |
-| **Database** | PostgreSQL (Neon) |
-| **CI/CD** | GitHub Actions; deploy to Render on merge to `main` |
+| **Backend**  | Go, chi, gorilla/websocket, Goose, sqlc, pgx                                                  |
+| **Database** | PostgreSQL (Neon)                                                                             |
+| **CI/CD**    | GitHub Actions; deploy to Render on merge to `main`                                           |
 
 ```
 frontend/          React app (Vite)
@@ -29,7 +29,7 @@ backend/
   cmd/api/         HTTP + WebSocket server
   internal/
     auth/          register, login, refresh, logout
-    crdt/          OT manager (authoritative document state)
+    ot/          OT manager (authoritative document state)
     documents/     document service + repository interfaces
     realtime/      WebSocket hub, presence, typed protocol
     storage/
@@ -84,45 +84,45 @@ Copy the example files and adjust for your environment. Actual `.env` files are 
 
 ### Backend (`backend/.env`)
 
-| Variable | Description |
-| --- | --- |
-| `HTTP_ADDR` | HTTP listen address (default `:3000`) |
-| `DATABASE_URL` | PostgreSQL connection string (Neon) |
-| `JWT_SECRET` | Signing key for access tokens |
-| `SESSION_SECRET` | Signing key for refresh-token cookies |
-| `FRONTEND_URL` | Frontend origin for CORS and redirects (e.g. `http://localhost:5173`) |
+| Variable         | Description                                                           |
+| ---------------- | --------------------------------------------------------------------- |
+| `HTTP_ADDR`      | HTTP listen address (default `:3000`)                                 |
+| `DATABASE_URL`   | PostgreSQL connection string (Neon)                                   |
+| `JWT_SECRET`     | Signing key for access tokens                                         |
+| `SESSION_SECRET` | Signing key for refresh-token cookies                                 |
+| `FRONTEND_URL`   | Frontend origin for CORS and redirects (e.g. `http://localhost:5173`) |
 
 Goose migrations run automatically on startup. The server fails fast if `DATABASE_URL` is missing.
 
 ### Frontend (`frontend/.env`)
 
-| Variable | Description |
-| --- | --- |
+| Variable       | Description                                        |
+| -------------- | -------------------------------------------------- |
 | `VITE_API_URL` | Backend HTTP origin (e.g. `http://localhost:3000`) |
-| `VITE_WS_URL` | Optional WebSocket origin override |
+| `VITE_WS_URL`  | Optional WebSocket origin override                 |
 
 ### CI / deployment (GitHub Actions secrets)
 
-| Secret | Description |
-| --- | --- |
-| `NEON_API_KEY` | Neon API key for per-PR database branches |
-| `NEON_PROJECT_ID` | Neon project ID |
-| `RENDER_DEPLOY_HOOK_URL` | Render deploy hook (CD on `main`) |
+| Secret                   | Description                               |
+| ------------------------ | ----------------------------------------- |
+| `NEON_API_KEY`           | Neon API key for per-PR database branches |
+| `NEON_PROJECT_ID`        | Neon project ID                           |
+| `RENDER_DEPLOY_HOOK_URL` | Render deploy hook (CD on `main`)         |
 
 ## API overview
 
 ### REST
 
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/healthz` | Health check |
-| `POST` | `/auth/register` | Create account |
-| `POST` | `/auth/login` | Issue access token + refresh cookie |
-| `POST` | `/auth/refresh` | Rotate refresh token, new access token |
-| `POST` | `/auth/logout` | Clear session |
-| `POST` | `/documents` | Create document (authenticated) |
-| `GET` | `/documents` | List documents for current user |
-| `GET` | `/documents/{id}` | Document snapshot |
+| Method | Path              | Description                            |
+| ------ | ----------------- | -------------------------------------- |
+| `GET`  | `/healthz`        | Health check                           |
+| `POST` | `/auth/register`  | Create account                         |
+| `POST` | `/auth/login`     | Issue access token + refresh cookie    |
+| `POST` | `/auth/refresh`   | Rotate refresh token, new access token |
+| `POST` | `/auth/logout`    | Clear session                          |
+| `POST` | `/documents`      | Create document (authenticated)        |
+| `GET`  | `/documents`      | List documents for current user        |
+| `GET`  | `/documents/{id}` | Document snapshot                      |
 
 ### WebSocket (`/ws?documentId={id}`)
 
@@ -133,12 +133,12 @@ Requires a valid access token. Enforces document `share_mode` (`private` / `read
 
 ## Routes (frontend)
 
-| Path | Description |
-| --- | --- |
-| `/login` | Sign in |
-| `/register` | Create account |
-| `/documents` | Document list (landing page after login) |
-| `/editor?room={id}` | Collaborative editor |
+| Path                | Description                              |
+| ------------------- | ---------------------------------------- |
+| `/login`            | Sign in                                  |
+| `/register`         | Create account                           |
+| `/documents`        | Document list (landing page after login) |
+| `/editor?room={id}` | Collaborative editor                     |
 
 Unauthenticated users hitting protected routes are redirected to `/login` with the return URL preserved.
 
