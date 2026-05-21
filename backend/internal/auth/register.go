@@ -30,8 +30,10 @@ const maxRequestBytes = 64 * 1024 // 64 KB — generous for a registration paylo
 func (h *RegisterHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBytes)
 
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
 	var req registerRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := dec.Decode(&req); err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
 			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
