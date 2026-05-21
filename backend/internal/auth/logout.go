@@ -25,6 +25,6 @@ func (h *LogoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	hash := hex.EncodeToString(sum[:])
 	_ = h.sessions.DeleteByTokenHash(r.Context(), hash)
 
-	http.SetCookie(w, refreshCookie("", -1))
+	http.SetCookie(w, refreshCookie("", -1, isSecure(r)))
 	w.WriteHeader(http.StatusNoContent)
 }

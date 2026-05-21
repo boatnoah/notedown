@@ -3,6 +3,7 @@ package auth
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"time"
 
@@ -10,6 +11,10 @@ import (
 
 	"github.com/boatnoah/notedown/internal/users"
 )
+
+// dummyHash is used to perform a constant-time bcrypt comparison when the
+// requested email does not exist, preventing account enumeration via timing.
+var dummyHash, _ = bcrypt.GenerateFromPassword([]byte("dummy-constant-notedown"), bcrypt.DefaultCost)
 
 type LoginHandler struct {
 	userRepo users.Repository
@@ -37,9 +42,19 @@ func (h *LoginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	dec.DisallowUnknownFields()
 	var req loginRequest
 	if err := dec.Decode(&req); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+		} else {
+			http.Error(w, "invalid JSON", http.StatusBadRequest)
+		}
+		return
+	}
+	if err := dec.Decode(new(json.RawMessage)); !errors.Is(err, io.EOF) {
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return
 	}
+
 	if req.Email == "" || req.Password == "" {
 		http.Error(w, "email and password are required", http.StatusBadRequest)
 		return
@@ -48,6 +63,8 @@ func (h *LoginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	user, hash, err := h.userRepo.GetByEmail(r.Context(), req.Email)
 	if err != nil {
 		if errors.Is(err, users.ErrNotFound) {
+			// Always run bcrypt to prevent timing-based account enumeration.
+			_ = bcrypt.CompareHashAndPassword(dummyHash, []byte(req.Password))
 			http.Error(w, "invalid credentials", http.StatusUnauthorized)
 			return
 		}
@@ -82,7 +99,7 @@ func (h *LoginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.SetCookie(w, refreshCookie(refreshToken, int(refreshTokenTTL.Seconds())))
+	http.SetCookie(w, refreshCookie(refreshToken, int(refreshTokenTTL.Seconds()), isSecure(r)))
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(loginResponse{AccessToken: accessToken})

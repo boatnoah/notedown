@@ -30,10 +30,12 @@ func (h *RefreshHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	sum := sha256.Sum256([]byte(cookie.Value))
 	hash := hex.EncodeToString(sum[:])
+	secure := isSecure(r)
 
 	session, err := h.sessions.GetByTokenHash(r.Context(), hash)
 	if err != nil {
 		if errors.Is(err, ErrSessionNotFound) || errors.Is(err, ErrSessionExpired) {
+			http.SetCookie(w, refreshCookie("", -1, secure))
 			http.Error(w, "invalid or expired refresh token", http.StatusUnauthorized)
 			return
 		}
@@ -42,15 +44,22 @@ func (h *RefreshHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if time.Now().After(session.ExpiresAt) {
-		_ = h.sessions.Delete(r.Context(), session.ID)
-		http.SetCookie(w, refreshCookie("", -1))
+		_ = h.sessions.DeleteByTokenHash(r.Context(), hash)
+		http.SetCookie(w, refreshCookie("", -1, secure))
 		http.Error(w, "invalid or expired refresh token", http.StatusUnauthorized)
 		return
 	}
 
 	user, err := h.userRepo.GetByID(r.Context(), session.UserID)
 	if err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
+		// User was deleted — treat the session as invalid.
+		_ = h.sessions.DeleteByTokenHash(r.Context(), hash)
+		http.SetCookie(w, refreshCookie("", -1, secure))
+		if errors.Is(err, users.ErrNotFound) {
+			http.Error(w, "invalid or expired refresh token", http.StatusUnauthorized)
+		} else {
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -60,7 +69,8 @@ func (h *RefreshHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.sessions.Delete(r.Context(), session.ID); err != nil {
+	// Delete by token hash (not session ID) to guard against duplicate rows.
+	if err := h.sessions.DeleteByTokenHash(r.Context(), hash); err != nil {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -81,7 +91,7 @@ func (h *RefreshHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.SetCookie(w, refreshCookie(newToken, int(refreshTokenTTL.Seconds())))
+	http.SetCookie(w, refreshCookie(newToken, int(refreshTokenTTL.Seconds()), secure))
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(loginResponse{AccessToken: accessToken})

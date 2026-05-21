@@ -3,6 +3,7 @@ package auth
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 
 	"github.com/boatnoah/notedown/internal/users"
@@ -40,6 +41,10 @@ func (h *RegisterHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			http.Error(w, "invalid JSON", http.StatusBadRequest)
 		}
+		return
+	}
+	if err := dec.Decode(new(json.RawMessage)); !errors.Is(err, io.EOF) {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return
 	}
 
