@@ -14,7 +14,15 @@ import (
 
 // dummyHash is used to perform a constant-time bcrypt comparison when the
 // requested email does not exist, preventing account enumeration via timing.
-var dummyHash, _ = bcrypt.GenerateFromPassword([]byte("dummy-constant-notedown"), bcrypt.DefaultCost)
+var dummyHash []byte
+
+func init() {
+	var err error
+	dummyHash, err = bcrypt.GenerateFromPassword([]byte("dummy-constant-notedown"), bcrypt.DefaultCost)
+	if err != nil {
+		panic("auth: failed to initialize dummy bcrypt hash: " + err.Error())
+	}
+}
 
 type LoginHandler struct {
 	userRepo users.Repository

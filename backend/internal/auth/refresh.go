@@ -69,18 +69,18 @@ func (h *RefreshHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Delete by token hash (not session ID) to guard against duplicate rows.
-	if err := h.sessions.DeleteByTokenHash(r.Context(), hash); err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-
 	newSession := &AuthSession{
 		UserID:           session.UserID,
 		RefreshTokenHash: newHash,
 		ExpiresAt:        time.Now().Add(refreshTokenTTL),
 	}
-	if err := h.sessions.Create(r.Context(), newSession); err != nil {
+	if err := h.sessions.RotateSession(r.Context(), hash, newSession); err != nil {
+		if errors.Is(err, ErrSessionNotFound) {
+			// Concurrent request already rotated this token.
+			http.SetCookie(w, refreshCookie("", -1, secure))
+			http.Error(w, "invalid or expired refresh token", http.StatusUnauthorized)
+			return
+		}
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}

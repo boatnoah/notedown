@@ -23,6 +23,7 @@ type Dependencies struct {
 	LogoutHandler   *auth.LogoutHandler
 	DocumentService *documents.Service
 	RealtimeHub     *realtime.Hub
+	FrontendURL     string
 }
 
 // NewRouter builds a chi router with all API endpoints mounted.
@@ -34,10 +35,10 @@ func NewRouter(deps Dependencies) http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(60 * time.Second))
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"},
+		AllowedOrigins:   []string{deps.FrontendURL},
 		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
-		AllowedHeaders:   []string{"*"},
-		AllowCredentials: false,
+		AllowedHeaders:   []string{"Authorization", "Content-Type"},
+		AllowCredentials: true,
 		MaxAge:           300,
 	}))
 

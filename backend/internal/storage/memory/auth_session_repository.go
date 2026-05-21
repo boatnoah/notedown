@@ -70,3 +70,19 @@ func (r *AuthSessionRepository) DeleteByTokenHash(_ context.Context, hash string
 	}
 	return nil
 }
+
+func (r *AuthSessionRepository) RotateSession(_ context.Context, oldHash string, newSession *auth.AuthSession) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	old, ok := r.byHash[oldHash]
+	if !ok {
+		return auth.ErrSessionNotFound
+	}
+	delete(r.byID, old.ID)
+	delete(r.byHash, oldHash)
+	newSession.ID = uuid.NewString()
+	clone := *newSession
+	r.byID[newSession.ID] = &clone
+	r.byHash[newSession.RefreshTokenHash] = &clone
+	return nil
+}

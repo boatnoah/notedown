@@ -3,6 +3,7 @@ package auth
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"net/http"
 )
 
@@ -23,7 +24,11 @@ func (h *LogoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	sum := sha256.Sum256([]byte(cookie.Value))
 	hash := hex.EncodeToString(sum[:])
-	_ = h.sessions.DeleteByTokenHash(r.Context(), hash)
+
+	if err := h.sessions.DeleteByTokenHash(r.Context(), hash); err != nil && !errors.Is(err, ErrSessionNotFound) {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
 
 	http.SetCookie(w, refreshCookie("", -1, isSecure(r)))
 	w.WriteHeader(http.StatusNoContent)

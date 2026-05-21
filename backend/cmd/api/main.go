@@ -59,6 +59,7 @@ func main() {
 		LogoutHandler:   logoutHandler,
 		DocumentService: docService,
 		RealtimeHub:     realtimeHub,
+		FrontendURL:     cfg.FrontendURL,
 	})
 
 	log.Printf("listening on %s", cfg.HTTPAddr)

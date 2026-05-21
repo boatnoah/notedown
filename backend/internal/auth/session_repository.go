@@ -23,4 +23,8 @@ type SessionRepository interface {
 	GetByTokenHash(ctx context.Context, hash string) (*AuthSession, error)
 	Delete(ctx context.Context, id string) error
 	DeleteByTokenHash(ctx context.Context, hash string) error
+	// RotateSession atomically deletes the session matching oldHash and creates
+	// newSession in a single operation. Returns ErrSessionNotFound if oldHash
+	// is already gone (concurrent rotation), allowing the caller to return 401.
+	RotateSession(ctx context.Context, oldHash string, newSession *AuthSession) error
 }
