@@ -32,6 +32,7 @@ func main() {
 	docRepo := postgres.NewDocumentRepository(database)
 	opRepo := postgres.NewOperationRepository(database)
 	sessionRepo := memory.NewSessionRepository() // ephemeral WS presence sessions, not persisted
+	authSessionRepo := postgres.NewAuthSessionRepository(database)
 	userRepo := postgres.NewUserRepository(database)
 	manager := ot.NewManager()
 
@@ -46,10 +47,16 @@ func main() {
 	realtimeHub := realtime.NewHub(docService)
 	authHandler := auth.NewHandler(cfg, docService)
 	registerHandler := auth.NewRegisterHandler(userService)
+	loginHandler := auth.NewLoginHandler(userRepo, authSessionRepo, cfg.JWTSecret)
+	refreshHandler := auth.NewRefreshHandler(userRepo, authSessionRepo, cfg.JWTSecret)
+	logoutHandler := auth.NewLogoutHandler(authSessionRepo)
 
 	router := server.NewRouter(server.Dependencies{
 		AuthHandler:     authHandler,
 		RegisterHandler: registerHandler,
+		LoginHandler:    loginHandler,
+		RefreshHandler:  refreshHandler,
+		LogoutHandler:   logoutHandler,
 		DocumentService: docService,
 		RealtimeHub:     realtimeHub,
 	})

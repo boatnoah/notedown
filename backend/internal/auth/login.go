@@ -1,0 +1,87 @@
+package auth
+
+import (
+	"encoding/json"
+	"errors"
+	"net/http"
+	"time"
+
+	"golang.org/x/crypto/bcrypt"
+
+	"github.com/boatnoah/notedown/internal/users"
+)
+
+type LoginHandler struct {
+	userRepo users.Repository
+	sessions SessionRepository
+	secret   string
+}
+
+func NewLoginHandler(userRepo users.Repository, sessions SessionRepository, jwtSecret string) *LoginHandler {
+	return &LoginHandler{userRepo: userRepo, sessions: sessions, secret: jwtSecret}
+}
+
+type loginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type loginResponse struct {
+	AccessToken string `json:"accessToken"`
+}
+
+func (h *LoginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBytes)
+
+	var req loginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if req.Email == "" || req.Password == "" {
+		http.Error(w, "email and password are required", http.StatusBadRequest)
+		return
+	}
+
+	user, hash, err := h.userRepo.GetByEmail(r.Context(), req.Email)
+	if err != nil {
+		if errors.Is(err, users.ErrNotFound) {
+			http.Error(w, "invalid credentials", http.StatusUnauthorized)
+			return
+		}
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password)); err != nil {
+		http.Error(w, "invalid credentials", http.StatusUnauthorized)
+		return
+	}
+
+	accessToken, err := issueAccessToken(user, h.secret)
+	if err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	refreshToken, refreshHash, err := generateRefreshToken()
+	if err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	session := &AuthSession{
+		UserID:           user.ID,
+		RefreshTokenHash: refreshHash,
+		ExpiresAt:        time.Now().Add(refreshTokenTTL),
+	}
+	if err := h.sessions.Create(r.Context(), session); err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	http.SetCookie(w, refreshCookie(refreshToken, int(refreshTokenTTL.Seconds())))
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(loginResponse{AccessToken: accessToken})
+}

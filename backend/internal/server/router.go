@@ -18,6 +18,9 @@ import (
 type Dependencies struct {
 	AuthHandler     *auth.Handler
 	RegisterHandler *auth.RegisterHandler
+	LoginHandler    *auth.LoginHandler
+	RefreshHandler  *auth.RefreshHandler
+	LogoutHandler   *auth.LogoutHandler
 	DocumentService *documents.Service
 	RealtimeHub     *realtime.Hub
 }
@@ -45,6 +48,9 @@ func NewRouter(deps Dependencies) http.Handler {
 
 	r.Route("/auth", func(r chi.Router) {
 		r.Post("/register", deps.RegisterHandler.ServeHTTP)
+		r.Post("/login", deps.LoginHandler.ServeHTTP)
+		r.Post("/refresh", deps.RefreshHandler.ServeHTTP)
+		r.Post("/logout", deps.LogoutHandler.ServeHTTP)
 		r.Get("/{provider}", deps.AuthHandler.BeginAuth)
 		r.Get("/{provider}/callback", deps.AuthHandler.Callback)
 	})

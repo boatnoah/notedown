@@ -46,3 +46,40 @@ func (r *UserRepository) Create(ctx context.Context, user *types.User, passwordH
 	user.CreatedAt = row.CreatedAt
 	return nil
 }
+
+func (r *UserRepository) GetByID(ctx context.Context, id string) (*types.User, error) {
+	row, err := r.q.GetUserByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, users.ErrNotFound
+		}
+		return nil, err
+	}
+	return &types.User{
+		ID:        row.ID,
+		Name:      row.Name,
+		Email:     row.Email,
+		Username:  row.Username,
+		Pfp:       types.PfpPreset(row.Pfp),
+		CreatedAt: row.CreatedAt,
+	}, nil
+}
+
+func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*types.User, string, error) {
+	row, err := r.q.GetUserByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, "", users.ErrNotFound
+		}
+		return nil, "", err
+	}
+	user := &types.User{
+		ID:        row.ID,
+		Name:      row.Name,
+		Email:     row.Email,
+		Username:  row.Username,
+		Pfp:       types.PfpPreset(row.Pfp),
+		CreatedAt: row.CreatedAt,
+	}
+	return user, row.PasswordHash, nil
+}

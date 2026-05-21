@@ -14,6 +14,7 @@ type Config struct {
 	GoogleClientID     string
 	GoogleClientSecret string
 	SessionSecret      string
+	JWTSecret          string
 }
 
 // Load reads configuration from environment variables. Defaults are provided
@@ -33,6 +34,7 @@ func Load() Config {
 		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 		SessionSecret:      getEnv("SESSION_SECRET", "dev-session-secret"),
+		JWTSecret:          getEnv("JWT_SECRET", "dev-jwt-secret"),
 	}
 
 	if cfg.GoogleClientID == "" || cfg.GoogleClientSecret == "" {
@@ -40,6 +42,9 @@ func Load() Config {
 	}
 	if cfg.SessionSecret == "dev-session-secret" {
 		log.Println("warning: SESSION_SECRET not set, using insecure default")
+	}
+	if cfg.JWTSecret == "dev-jwt-secret" {
+		log.Println("warning: JWT_SECRET not set, using insecure default")
 	}
 
 	return cfg
