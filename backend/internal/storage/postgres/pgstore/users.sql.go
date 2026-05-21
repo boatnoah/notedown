@@ -10,6 +10,37 @@ import (
 	"time"
 )
 
+const getUserByEmail = `-- name: GetUserByEmail :one
+SELECT id, name, email, username, password_hash, pfp, created_at
+FROM users
+WHERE email = $1
+`
+
+type GetUserByEmailRow struct {
+	ID           string
+	Name         string
+	Email        string
+	Username     string
+	PasswordHash string
+	Pfp          string
+	CreatedAt    time.Time
+}
+
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserByEmail, email)
+	var i GetUserByEmailRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.Username,
+		&i.PasswordHash,
+		&i.Pfp,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (name, email, username, password_hash, pfp)
 VALUES ($1, $2, $3, $4, $5)
@@ -31,6 +62,35 @@ type CreateUserRow struct {
 	Username  string
 	Pfp       string
 	CreatedAt time.Time
+}
+
+const getUserByID = `-- name: GetUserByID :one
+SELECT id, name, email, username, pfp, created_at
+FROM users
+WHERE id = $1
+`
+
+type GetUserByIDRow struct {
+	ID        string
+	Name      string
+	Email     string
+	Username  string
+	Pfp       string
+	CreatedAt time.Time
+}
+
+func (q *Queries) GetUserByID(ctx context.Context, id string) (GetUserByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserByID, id)
+	var i GetUserByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.Username,
+		&i.Pfp,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {

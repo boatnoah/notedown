@@ -48,3 +48,28 @@ func (r *UserRepository) Create(_ context.Context, user *types.User, passwordHas
 	r.hashes[user.ID] = passwordHash
 	return nil
 }
+
+func (r *UserRepository) GetByEmail(_ context.Context, email string) (*types.User, string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, u := range r.byID {
+		if u.Email == email {
+			clone := *u
+			return &clone, r.hashes[u.ID], nil
+		}
+	}
+	return nil, "", users.ErrNotFound
+}
+
+func (r *UserRepository) GetByID(_ context.Context, id string) (*types.User, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	u, ok := r.byID[id]
+	if !ok {
+		return nil, users.ErrNotFound
+	}
+	clone := *u
+	return &clone, nil
+}

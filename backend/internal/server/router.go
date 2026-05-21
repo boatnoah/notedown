@@ -18,8 +18,12 @@ import (
 type Dependencies struct {
 	AuthHandler     *auth.Handler
 	RegisterHandler *auth.RegisterHandler
+	LoginHandler    *auth.LoginHandler
+	RefreshHandler  *auth.RefreshHandler
+	LogoutHandler   *auth.LogoutHandler
 	DocumentService *documents.Service
 	RealtimeHub     *realtime.Hub
+	FrontendURL     string
 }
 
 // NewRouter builds a chi router with all API endpoints mounted.
@@ -31,10 +35,10 @@ func NewRouter(deps Dependencies) http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(60 * time.Second))
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"},
+		AllowedOrigins:   []string{deps.FrontendURL},
 		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
-		AllowedHeaders:   []string{"*"},
-		AllowCredentials: false,
+		AllowedHeaders:   []string{"Authorization", "Content-Type"},
+		AllowCredentials: true,
 		MaxAge:           300,
 	}))
 
@@ -45,6 +49,9 @@ func NewRouter(deps Dependencies) http.Handler {
 
 	r.Route("/auth", func(r chi.Router) {
 		r.Post("/register", deps.RegisterHandler.ServeHTTP)
+		r.Post("/login", deps.LoginHandler.ServeHTTP)
+		r.Post("/refresh", deps.RefreshHandler.ServeHTTP)
+		r.Post("/logout", deps.LogoutHandler.ServeHTTP)
 		r.Get("/{provider}", deps.AuthHandler.BeginAuth)
 		r.Get("/{provider}/callback", deps.AuthHandler.Callback)
 	})

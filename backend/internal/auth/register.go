@@ -3,6 +3,7 @@ package auth
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 
 	"github.com/boatnoah/notedown/internal/users"
@@ -30,14 +31,20 @@ const maxRequestBytes = 64 * 1024 // 64 KB — generous for a registration paylo
 func (h *RegisterHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBytes)
 
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
 	var req registerRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := dec.Decode(&req); err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
 			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
 		} else {
 			http.Error(w, "invalid JSON", http.StatusBadRequest)
 		}
+		return
+	}
+	if err := dec.Decode(new(json.RawMessage)); !errors.Is(err, io.EOF) {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return
 	}
 
