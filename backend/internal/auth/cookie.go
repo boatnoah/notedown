@@ -6,7 +6,7 @@ func refreshCookie(value string, maxAge int) *http.Cookie {
 	return &http.Cookie{
 		Name:     "refresh_token",
 		Value:    value,
-		Path:     "/auth/refresh",
+		Path:     "/auth",
 		HttpOnly: true,
 		Secure:   false, // set true behind TLS
 		SameSite: http.SameSiteStrictMode,
