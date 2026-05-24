@@ -10,7 +10,7 @@ export interface User {
 function parseJwt(token: string): Record<string, unknown> | null {
   try {
     const [, payload] = token.split('.')
-    const padded = payload + '=='.slice(payload.length % 4 || 4)
+    const padded = payload + '='.repeat((4 - (payload.length % 4)) % 4)
     return JSON.parse(atob(padded.replace(/-/g, '+').replace(/_/g, '/'))) as Record<string, unknown>
   } catch {
     return null

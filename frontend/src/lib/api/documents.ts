@@ -1,13 +1,5 @@
-import { apiFetch } from './client'
+import { apiFetch, expectOk } from './client'
 import type { DocumentRecord, Snapshot } from '../protocol'
-
-async function expectOk(res: Response, label: string): Promise<Response> {
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`${label} (${res.status})${body ? `: ${body}` : ''}`)
-  }
-  return res
-}
 
 export async function fetchDocuments(): Promise<DocumentRecord[]> {
   const res = await apiFetch('/documents')

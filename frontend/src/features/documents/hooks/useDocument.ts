@@ -6,7 +6,10 @@ import type { Snapshot } from '../../../lib/protocol'
 export function useDocument(id: string | undefined) {
   return useQuery<Snapshot>({
     queryKey: ['document', id],
-    queryFn: () => fetchDocument(id!),
-    enabled: id !== undefined,
+    queryFn: () => {
+      if (!id) throw new Error('useDocument called without an id')
+      return fetchDocument(id)
+    },
+    enabled: Boolean(id),
   })
 }

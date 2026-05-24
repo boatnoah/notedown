@@ -1,4 +1,4 @@
-import { apiFetch } from './client'
+import { apiFetch, expectOk } from './client'
 
 export interface LoginCredentials {
   email: string
@@ -26,14 +26,6 @@ export interface RegisteredUser {
   createdAt: string
 }
 
-async function expectOk(res: Response, label: string): Promise<Response> {
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`${label} (${res.status})${body ? `: ${body}` : ''}`)
-  }
-  return res
-}
-
 export async function login(credentials: LoginCredentials): Promise<LoginResponse> {
   const res = await apiFetch('/auth/login', {
     method: 'POST',
@@ -53,5 +45,6 @@ export async function register(credentials: RegisterCredentials): Promise<Regist
 }
 
 export async function logout(): Promise<void> {
-  await apiFetch('/auth/logout', { method: 'POST' })
+  const res = await apiFetch('/auth/logout', { method: 'POST' })
+  await expectOk(res, 'Logout failed')
 }

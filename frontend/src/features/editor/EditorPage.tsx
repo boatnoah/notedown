@@ -27,19 +27,25 @@ export function EditorPage() {
     return () => {
       cancelled = true
     }
-    // room is the only trigger — navigate and createDoc refs are stable
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room])
+  }, [room, createDoc, navigate])
+
+  if (createError) {
+    return (
+      <p className="error">
+        Failed to create document.{' '}
+        {createError instanceof Error ? createError.message : 'Unknown error'}
+      </p>
+    )
+  }
 
   if (isCreating || !room || isFetchPending) {
     return <p>Loading editor…</p>
   }
 
-  const error = createError ?? fetchError
-  if (error || !snapshot) {
+  if (fetchError || !snapshot) {
     return (
       <p className="error">
-        Failed to load editor. {error instanceof Error ? error.message : (error ?? 'Unknown error')}
+        Failed to load editor. {fetchError instanceof Error ? fetchError.message : 'Unknown error'}
       </p>
     )
   }
