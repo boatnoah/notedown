@@ -66,7 +66,11 @@ export function encodeClientMessage(msg: ClientMessage): string {
 export function parseServerMessage(data: string): ServerMessage | null {
   try {
     const parsed: unknown = JSON.parse(data)
-    if (typeof parsed !== 'object' || parsed === null || !('type' in parsed)) {
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      !Object.prototype.hasOwnProperty.call(parsed, 'type')
+    ) {
       return null
     }
     const { type } = parsed as { type: unknown }

@@ -48,19 +48,29 @@ func UnmarshalClient(data []byte) (ClientMsg, error) {
 	}
 	switch envelope.Type {
 	case "operation":
-		var m OperationMsg
-		if err := json.Unmarshal(data, &m); err != nil {
+		var raw struct {
+			Operation *ot.Operation `json:"operation"`
+		}
+		if err := json.Unmarshal(data, &raw); err != nil {
 			return nil, err
 		}
-		return m, nil
+		if raw.Operation == nil {
+			return nil, fmt.Errorf("operation message missing required field: operation")
+		}
+		return OperationMsg{Operation: *raw.Operation}, nil
 	case "sync":
 		return SyncMsg{}, nil
 	case "presence":
-		var m PresenceMsg
-		if err := json.Unmarshal(data, &m); err != nil {
+		var raw struct {
+			Presence *CursorPayload `json:"presence"`
+		}
+		if err := json.Unmarshal(data, &raw); err != nil {
 			return nil, err
 		}
-		return m, nil
+		if raw.Presence == nil {
+			return nil, fmt.Errorf("presence message missing required field: presence")
+		}
+		return PresenceMsg{Presence: *raw.Presence}, nil
 	default:
 		return nil, fmt.Errorf("unknown client message type: %q", envelope.Type)
 	}

@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  encodeClientMessage,
-  parseServerMessage,
-  type ClientMessage,
-  type ServerMessage,
-} from './protocol'
+import { encodeClientMessage, parseServerMessage, type ClientMessage } from './protocol'
 
 // ---------- encodeClientMessage round-trip ----------
 
@@ -47,8 +42,8 @@ describe('parseServerMessage', () => {
       type: 'snapshot',
       snapshot: { documentId: 'doc1', version: 2, content: 'hello' },
     })
-    const msg = parseServerMessage(raw) as ServerMessage
-    expect(msg).not.toBeNull()
+    const msg = parseServerMessage(raw)
+    if (msg === null) throw new Error('expected non-null message')
     expect(msg.type).toBe('snapshot')
     if (msg.type === 'snapshot') {
       expect(msg.snapshot.content).toBe('hello')
@@ -63,8 +58,8 @@ describe('parseServerMessage', () => {
         u1: { userId: 'u1', name: 'Alice', color: '#f00', anchor: 0, head: 1 },
       },
     })
-    const msg = parseServerMessage(raw) as ServerMessage
-    expect(msg).not.toBeNull()
+    const msg = parseServerMessage(raw)
+    if (msg === null) throw new Error('expected non-null message')
     expect(msg.type).toBe('presenceSnapshot')
     if (msg.type === 'presenceSnapshot') {
       expect(msg.presences['u1'].name).toBe('Alice')
@@ -77,8 +72,8 @@ describe('parseServerMessage', () => {
       userId: 'u2',
       presence: { userId: 'u2', name: 'Bob', color: '#0f0', anchor: 5, head: 8 },
     })
-    const msg = parseServerMessage(raw) as ServerMessage
-    expect(msg).not.toBeNull()
+    const msg = parseServerMessage(raw)
+    if (msg === null) throw new Error('expected non-null message')
     expect(msg.type).toBe('presenceUpdate')
     if (msg.type === 'presenceUpdate') {
       expect(msg.userId).toBe('u2')
@@ -88,8 +83,8 @@ describe('parseServerMessage', () => {
 
   it('parses error message', () => {
     const raw = JSON.stringify({ type: 'error', error: 'something went wrong' })
-    const msg = parseServerMessage(raw) as ServerMessage
-    expect(msg).not.toBeNull()
+    const msg = parseServerMessage(raw)
+    if (msg === null) throw new Error('expected non-null message')
     expect(msg.type).toBe('error')
     if (msg.type === 'error') {
       expect(msg.error).toBe('something went wrong')

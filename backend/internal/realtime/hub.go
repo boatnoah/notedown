@@ -86,12 +86,18 @@ func (h *Hub) register(c *Client) {
 	defer cancel()
 	snapshot, err := h.service.Snapshot(ctx, c.documentID)
 	if err == nil {
-		payload, _ := MarshalServer(SnapshotMsg{Snapshot: snapshot})
-		c.send <- payload
+		if payload, merr := MarshalServer(SnapshotMsg{Snapshot: snapshot}); merr == nil {
+			c.send <- payload
+		} else {
+			log.Printf("marshal snapshot: %v", merr)
+		}
 	}
 
-	presencePayload, _ := MarshalServer(PresenceSnapshotMsg{Presences: h.presence.Snapshot(c.documentID)})
-	c.send <- presencePayload
+	if payload, merr := MarshalServer(PresenceSnapshotMsg{Presences: h.presence.Snapshot(c.documentID)}); merr == nil {
+		c.send <- payload
+	} else {
+		log.Printf("marshal presence snapshot: %v", merr)
+	}
 }
 
 func (h *Hub) unregister(c *Client) {
@@ -106,8 +112,11 @@ func (h *Hub) unregister(c *Client) {
 	}
 
 	h.presence.Remove(c.documentID, c.userID)
-	payload, _ := MarshalServer(PresenceUpdateMsg{UserID: c.userID, Presence: Presence{}})
-	go h.broadcast(c.documentID, payload)
+	if payload, err := MarshalServer(PresenceUpdateMsg{UserID: c.userID, Presence: Presence{}}); err == nil {
+		go h.broadcast(c.documentID, payload)
+	} else {
+		log.Printf("marshal presence update: %v", err)
+	}
 
 	close(c.send)
 }
@@ -163,32 +172,40 @@ func (c *Client) readLoop() {
 			cancel()
 			if err != nil {
 				log.Printf("apply op failed: %v", err)
-				payload, _ := MarshalServer(ErrorMsg{Error: err.Error()})
-				select {
-				case c.send <- payload:
-				default:
+				if payload, merr := MarshalServer(ErrorMsg{Error: err.Error()}); merr == nil {
+					select {
+					case c.send <- payload:
+					default:
+					}
 				}
 				continue
 			}
-			payload, _ := MarshalServer(SnapshotMsg{Snapshot: snapshot})
-			c.hub.broadcast(c.documentID, payload)
+			if payload, err := MarshalServer(SnapshotMsg{Snapshot: snapshot}); err == nil {
+				c.hub.broadcast(c.documentID, payload)
+			} else {
+				log.Printf("marshal snapshot: %v", err)
+			}
 		case SyncMsg:
 			ctx, cancel := rWithTimeout()
 			snapshot, err := c.hub.service.Snapshot(ctx, c.documentID)
 			cancel()
 			if err != nil {
 				log.Printf("snapshot failed: %v", err)
-				payload, _ := MarshalServer(ErrorMsg{Error: err.Error()})
+				if payload, merr := MarshalServer(ErrorMsg{Error: err.Error()}); merr == nil {
+					select {
+					case c.send <- payload:
+					default:
+					}
+				}
+				continue
+			}
+			if payload, err := MarshalServer(SnapshotMsg{Snapshot: snapshot}); err == nil {
 				select {
 				case c.send <- payload:
 				default:
 				}
-				continue
-			}
-			payload, _ := MarshalServer(SnapshotMsg{Snapshot: snapshot})
-			select {
-			case c.send <- payload:
-			default:
+			} else {
+				log.Printf("marshal snapshot: %v", err)
 			}
 		case PresenceMsg:
 			pres := Presence{
@@ -199,8 +216,11 @@ func (c *Client) readLoop() {
 				Head:   m.Presence.Head,
 			}
 			c.hub.presence.Update(c.documentID, pres)
-			payload, _ := MarshalServer(PresenceUpdateMsg{UserID: c.userID, Presence: pres})
-			c.hub.broadcast(c.documentID, payload)
+			if payload, err := MarshalServer(PresenceUpdateMsg{UserID: c.userID, Presence: pres}); err == nil {
+				c.hub.broadcast(c.documentID, payload)
+			} else {
+				log.Printf("marshal presence update: %v", err)
+			}
 		}
 	}
 }
