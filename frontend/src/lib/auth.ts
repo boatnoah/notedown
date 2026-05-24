@@ -15,3 +15,18 @@ export function clearAccessToken(): void {
 export function isAuthenticated(): boolean {
   return getAccessToken() !== null
 }
+
+export async function refreshAuth(backendOrigin: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${backendOrigin}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+    if (!res.ok) return false
+    const data = (await res.json()) as { accessToken: string }
+    setAccessToken(data.accessToken)
+    return true
+  } catch {
+    return false
+  }
+}

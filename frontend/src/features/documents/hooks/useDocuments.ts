@@ -1,4 +1,11 @@
-/** Placeholder hook for document list queries (see issue #14, #19). */
+import { useQuery } from '@tanstack/react-query'
+
+import { fetchDocuments } from '../../../lib/api/documents'
+import type { DocumentRecord } from '../../../lib/protocol'
+
 export function useDocuments() {
-  return { documents: [], isLoading: false, error: null }
+  return useQuery<DocumentRecord[]>({
+    queryKey: ['documents'],
+    queryFn: fetchDocuments,
+  })
 }
