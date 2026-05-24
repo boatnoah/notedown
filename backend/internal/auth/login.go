@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"time"
 
@@ -29,11 +30,17 @@ type LoginHandler struct {
 	userRepo            users.Repository
 	sessions            SessionRepository
 	secret              string
-	OnUserAuthenticated func(ctx context.Context, userID string)
+	onUserAuthenticated func(ctx context.Context, userID string)
 }
 
 func NewLoginHandler(userRepo users.Repository, sessions SessionRepository, jwtSecret string) *LoginHandler {
 	return &LoginHandler{userRepo: userRepo, sessions: sessions, secret: jwtSecret}
+}
+
+// SetOnUserAuthenticated registers a hook invoked asynchronously after each
+// successful login. Must be called before ServeHTTP is used.
+func (h *LoginHandler) SetOnUserAuthenticated(fn func(ctx context.Context, userID string)) {
+	h.onUserAuthenticated = fn
 }
 
 type loginRequest struct {
@@ -111,8 +118,17 @@ func (h *LoginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	http.SetCookie(w, refreshCookie(refreshToken, int(refreshTokenTTL.Seconds()), isSecure(r)))
 
-	if h.OnUserAuthenticated != nil {
-		go h.OnUserAuthenticated(context.Background(), user.ID)
+	if fn := h.onUserAuthenticated; fn != nil {
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("onUserAuthenticated panic: %v", r)
+				}
+			}()
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			fn(ctx, user.ID)
+		}()
 	}
 
 	w.Header().Set("Content-Type", "application/json")
