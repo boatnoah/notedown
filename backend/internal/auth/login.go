@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -25,9 +26,10 @@ func init() {
 }
 
 type LoginHandler struct {
-	userRepo users.Repository
-	sessions SessionRepository
-	secret   string
+	userRepo            users.Repository
+	sessions            SessionRepository
+	secret              string
+	OnUserAuthenticated func(ctx context.Context, userID string)
 }
 
 func NewLoginHandler(userRepo users.Repository, sessions SessionRepository, jwtSecret string) *LoginHandler {
@@ -108,6 +110,10 @@ func (h *LoginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.SetCookie(w, refreshCookie(refreshToken, int(refreshTokenTTL.Seconds()), isSecure(r)))
+
+	if h.OnUserAuthenticated != nil {
+		go h.OnUserAuthenticated(context.Background(), user.ID)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(loginResponse{AccessToken: accessToken})

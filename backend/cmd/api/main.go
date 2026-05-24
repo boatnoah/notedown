@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 
@@ -45,14 +46,17 @@ func main() {
 	userService := users.NewService(userRepo)
 
 	realtimeHub := realtime.NewHub(docService)
-	authHandler := auth.NewHandler(cfg, docService)
 	registerHandler := auth.NewRegisterHandler(userService)
 	loginHandler := auth.NewLoginHandler(userRepo, authSessionRepo, cfg.JWTSecret)
+	loginHandler.OnUserAuthenticated = func(ctx context.Context, userID string) {
+		if _, err := docService.CreateDocument(ctx, userID); err != nil {
+			log.Printf("onUserAuthenticated: create document for %s: %v", userID, err)
+		}
+	}
 	refreshHandler := auth.NewRefreshHandler(userRepo, authSessionRepo, cfg.JWTSecret)
 	logoutHandler := auth.NewLogoutHandler(authSessionRepo)
 
 	router := server.NewRouter(server.Dependencies{
-		AuthHandler:     authHandler,
 		RegisterHandler: registerHandler,
 		LoginHandler:    loginHandler,
 		RefreshHandler:  refreshHandler,
