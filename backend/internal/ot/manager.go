@@ -16,13 +16,14 @@ const (
 
 // Operation captures a single text mutation emitted by a client.
 type Operation struct {
-	ID        string        `json:"id"`
-	ClientID  string        `json:"clientId"`
-	Kind      OperationKind `json:"kind"`
-	Offset    int           `json:"offset"`
-	Length    int           `json:"length"`
-	Text      string        `json:"text"`
-	Timestamp time.Time     `json:"timestamp"`
+	ID            string        `json:"id"`
+	ClientID      string        `json:"clientId"`
+	ClientVersion int64         `json:"clientVersion"`
+	Kind          OperationKind `json:"kind"`
+	Offset        int           `json:"offset"`
+	Length        int           `json:"length"`
+	Text          string        `json:"text"`
+	Timestamp     time.Time     `json:"timestamp"`
 }
 
 // Snapshot exposes the canonical document state shared with clients.
@@ -41,6 +42,13 @@ type Manager struct {
 type docState struct {
 	Version int64
 	Content []rune
+	// history holds canonical operations in application order. len(history)
+	// always equals int(Version). It grows by one entry per applied operation,
+	// so memory scales with total edit count. A future pruning pass — keyed on
+	// the minimum ClientVersion across active sessions (available from the
+	// presence/hub layer) — can reclaim history entries that no concurrent
+	// client could ever need to transform against.
+	history []Operation
 }
 
 // NewManager constructs an empty OT manager.
@@ -75,8 +83,45 @@ func (m *Manager) Snapshot(documentID string) (Snapshot, error) {
 	}, nil
 }
 
-// Apply merges an operation into the canonical document state.
-func (m *Manager) Apply(documentID string, op Operation) (Snapshot, error) {
+// Apply transforms op against any operations that occurred since op.ClientVersion,
+// applies the resulting canonical operation, and returns both the updated Snapshot
+// and the canonical operation. Callers should persist the returned canonical
+// operation rather than the original so that replay via ApplyDirect is correct.
+func (m *Manager) Apply(documentID string, op Operation) (Snapshot, Operation, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	state, ok := m.docs[documentID]
+	if !ok {
+		return Snapshot{}, Operation{}, errors.New("document not initialized")
+	}
+
+	if op.ClientVersion < 0 || op.ClientVersion > state.Version {
+		return Snapshot{}, Operation{}, errors.New("invalid client version")
+	}
+
+	// len(state.history) == int(state.Version) is the loop invariant maintained
+	// by applyToState; the cast is safe after the bounds check above.
+	start := int(op.ClientVersion)
+	for _, concurrent := range state.history[start:] {
+		op = transform(op, concurrent)
+	}
+
+	if err := applyToState(state, op); err != nil {
+		return Snapshot{}, Operation{}, err
+	}
+
+	return Snapshot{
+		DocumentID: documentID,
+		Version:    state.Version,
+		Content:    string(state.Content),
+	}, op, nil
+}
+
+// ApplyDirect applies op without transformation. It is intended for replaying
+// canonical operations loaded from persistent storage, where the transformation
+// step was already performed when the operation was first applied live.
+func (m *Manager) ApplyDirect(documentID string, op Operation) (Snapshot, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -85,28 +130,97 @@ func (m *Manager) Apply(documentID string, op Operation) (Snapshot, error) {
 		return Snapshot{}, errors.New("document not initialized")
 	}
 
-	switch op.Kind {
-	case OperationInsert:
-		if op.Offset < 0 || op.Offset > len(state.Content) {
-			return Snapshot{}, errors.New("insert offset out of bounds")
-		}
-		before := append([]rune{}, state.Content[:op.Offset]...)
-		after := append([]rune{}, state.Content[op.Offset:]...)
-		state.Content = append(before, append([]rune(op.Text), after...)...)
-	case OperationDelete:
-		if op.Offset < 0 || op.Offset+op.Length > len(state.Content) {
-			return Snapshot{}, errors.New("delete range out of bounds")
-		}
-		state.Content = append(append([]rune{}, state.Content[:op.Offset]...), state.Content[op.Offset+op.Length:]...)
-	default:
-		return Snapshot{}, errors.New("unsupported operation kind")
+	if err := applyToState(state, op); err != nil {
+		return Snapshot{}, err
 	}
-
-	state.Version++
 
 	return Snapshot{
 		DocumentID: documentID,
 		Version:    state.Version,
 		Content:    string(state.Content),
 	}, nil
+}
+
+// applyToState mutates state by applying op, appending the canonical op to
+// history, and incrementing Version. It does not acquire any locks.
+func applyToState(state *docState, op Operation) error {
+	switch op.Kind {
+	case OperationInsert:
+		if op.Offset < 0 || op.Offset > len(state.Content) {
+			return errors.New("insert offset out of bounds")
+		}
+		before := append([]rune{}, state.Content[:op.Offset]...)
+		after := append([]rune{}, state.Content[op.Offset:]...)
+		state.Content = append(before, append([]rune(op.Text), after...)...)
+	case OperationDelete:
+		if op.Offset < 0 || op.Offset+op.Length > len(state.Content) {
+			return errors.New("delete range out of bounds")
+		}
+		state.Content = append(append([]rune{}, state.Content[:op.Offset]...), state.Content[op.Offset+op.Length:]...)
+	default:
+		return errors.New("unsupported operation kind")
+	}
+	state.history = append(state.history, op)
+	state.Version++
+	return nil
+}
+
+// transform adjusts op so it produces the correct result when applied after
+// against has already been applied. The server always has priority for the
+// already-applied operation; at equal positions an insert-vs-insert tie is
+// broken by shifting the incoming op to the right.
+func transform(op, against Operation) Operation {
+	result := op
+	switch against.Kind {
+	case OperationInsert:
+		aLen := len([]rune(against.Text))
+		switch op.Kind {
+		case OperationInsert:
+			// against sits at or before op's insertion point — shift right.
+			// Equal-position tie-break: against wins (was applied first).
+			if against.Offset <= op.Offset {
+				result.Offset += aLen
+			}
+		case OperationDelete:
+			if against.Offset <= op.Offset {
+				result.Offset += aLen
+			} else if against.Offset < op.Offset+op.Length {
+				// against inserted inside the range op wants to delete — expand.
+				result.Length += aLen
+			}
+		}
+	case OperationDelete:
+		aEnd := against.Offset + against.Length
+		switch op.Kind {
+		case OperationInsert:
+			if aEnd <= op.Offset {
+				// against's delete is entirely before op's insert point.
+				result.Offset -= against.Length
+			} else if against.Offset < op.Offset {
+				// op's insert point fell inside the deleted region — clamp.
+				result.Offset = against.Offset
+			}
+		case OperationDelete:
+			oEnd := op.Offset + op.Length
+			if aEnd <= op.Offset {
+				// against is entirely before op.
+				result.Offset -= against.Length
+			} else if against.Offset < oEnd {
+				// Ranges overlap: remove double-counted characters.
+				leftShift := 0
+				if against.Offset < op.Offset {
+					leftShift = min(aEnd, op.Offset) - against.Offset
+				}
+				overlapStart := max(against.Offset, op.Offset)
+				overlapEnd := min(aEnd, oEnd)
+				overlap := overlapEnd - overlapStart
+				result.Offset -= leftShift
+				result.Length -= overlap
+				if result.Length < 0 {
+					result.Length = 0
+				}
+			}
+		}
+	}
+	return result
 }
