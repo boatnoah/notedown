@@ -46,6 +46,9 @@ func UnmarshalClient(data []byte) (ClientMsg, error) {
 	if err := json.Unmarshal(data, &envelope); err != nil {
 		return nil, err
 	}
+	if envelope.Type == "" {
+		return nil, fmt.Errorf("client message missing required field: type")
+	}
 	switch envelope.Type {
 	case "operation":
 		var raw struct {

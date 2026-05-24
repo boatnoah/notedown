@@ -177,6 +177,8 @@ func (c *Client) readLoop() {
 					case c.send <- payload:
 					default:
 					}
+				} else {
+					log.Printf("marshal error msg: %v", merr)
 				}
 				continue
 			}
@@ -196,6 +198,8 @@ func (c *Client) readLoop() {
 					case c.send <- payload:
 					default:
 					}
+				} else {
+					log.Printf("marshal error msg: %v", merr)
 				}
 				continue
 			}
