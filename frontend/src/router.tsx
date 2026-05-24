@@ -10,7 +10,8 @@ import { LoginPage } from './features/auth/components/LoginPage'
 import { RegisterPage } from './features/auth/components/RegisterPage'
 import { DocumentsPage } from './features/documents/components/DocumentsPage'
 import { EditorPage } from './features/editor/EditorPage'
-import { isAuthenticated } from './lib/auth'
+import { isAuthenticated, refreshAuth } from './lib/auth'
+import { getBackendOrigin } from './lib/config'
 
 const rootRoute = createRootRoute({
   component: Outlet,
@@ -47,11 +48,14 @@ const registerRoute = createRoute({
 const authRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'auth',
-  beforeLoad: ({ location }) => {
-    if (!isAuthenticated()) {
+  beforeLoad: async ({ location }) => {
+    const authed = isAuthenticated() || (await refreshAuth(getBackendOrigin()))
+    if (!authed) {
       throw redirect({
         to: '/login',
-        search: { redirect: location.href },
+        search: {
+          redirect: location.pathname + location.searchStr + location.hash,
+        },
       })
     }
   },
