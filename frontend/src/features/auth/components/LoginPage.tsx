@@ -1,7 +1,15 @@
+import { useSearch } from '@tanstack/react-router'
+
 import { getBackendOrigin } from '../../../lib/config'
 
 export function LoginPage() {
+  const { redirect } = useSearch({ from: '/login' })
+
   const signIn = () => {
+    // Store the intended destination so the app can redirect after OAuth completes.
+    if (redirect) {
+      sessionStorage.setItem('postLoginRedirect', redirect)
+    }
     window.location.href = `${getBackendOrigin()}/auth/google`
   }
 

@@ -1,3 +1,4 @@
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 
 import { createDocument, fetchSnapshot } from '../../lib/api'
@@ -5,10 +6,10 @@ import type { Snapshot } from '../../lib/protocol'
 import { Editor } from './components/Editor'
 
 export function EditorPage() {
-  const [documentId, setDocumentId] = useState<string | null>(() => {
-    const params = new URLSearchParams(window.location.search)
-    return params.get('room') || params.get('documentId')
-  })
+  const { room } = useSearch({ from: '/auth/editor' })
+  const navigate = useNavigate()
+
+  const [documentId, setDocumentId] = useState<string | undefined>(room)
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -23,11 +24,10 @@ export function EditorPage() {
         if (!id) {
           const doc = await createDocument()
           id = doc.id
-          const params = new URLSearchParams(window.location.search)
-          params.set('room', id)
-          const nextUrl = `${window.location.pathname}?${params.toString()}`
-          window.history.replaceState({}, '', nextUrl)
-          setDocumentId(id)
+          if (!cancelled) {
+            setDocumentId(id)
+            await navigate({ to: '/editor', search: { room: id }, replace: true })
+          }
         }
 
         if (!id) {
@@ -55,7 +55,7 @@ export function EditorPage() {
     return () => {
       cancelled = true
     }
-  }, [documentId])
+  }, [documentId, navigate])
 
   if (loading) {
     return <p>Loading editor…</p>
