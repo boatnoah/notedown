@@ -2,7 +2,6 @@ package realtime
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"net/http"
 	"sync"
@@ -12,7 +11,6 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/boatnoah/notedown/internal/documents"
-	"github.com/boatnoah/notedown/internal/ot"
 )
 
 var upgrader = websocket.Upgrader{
@@ -75,7 +73,6 @@ func (h *Hub) register(c *Client) {
 	}
 	h.rooms[c.documentID][c] = struct{}{}
 
-	// initialize presence entry for this user
 	pres := Presence{
 		UserID: c.userID,
 		Name:   c.userID,
@@ -89,11 +86,11 @@ func (h *Hub) register(c *Client) {
 	defer cancel()
 	snapshot, err := h.service.Snapshot(ctx, c.documentID)
 	if err == nil {
-		payload, _ := json.Marshal(outboundMessage{Type: "snapshot", Snapshot: snapshot})
+		payload, _ := MarshalServer(SnapshotMsg{Snapshot: snapshot})
 		c.send <- payload
 	}
 
-	presencePayload, _ := json.Marshal(presenceSnapshot{Type: "presenceSnapshot", Presences: h.presence.Snapshot(c.documentID)})
+	presencePayload, _ := MarshalServer(PresenceSnapshotMsg{Presences: h.presence.Snapshot(c.documentID)})
 	c.send <- presencePayload
 }
 
@@ -109,8 +106,7 @@ func (h *Hub) unregister(c *Client) {
 	}
 
 	h.presence.Remove(c.documentID, c.userID)
-	update := presenceUpdate{Type: "presenceUpdate", UserID: c.userID, Presence: Presence{}}
-	payload, _ := json.Marshal(update)
+	payload, _ := MarshalServer(PresenceUpdateMsg{UserID: c.userID, Presence: Presence{}})
 	go h.broadcast(c.documentID, payload)
 
 	close(c.send)
@@ -141,38 +137,6 @@ type Client struct {
 	userID     string
 }
 
-type inboundMessage struct {
-	Type      string         `json:"type"`
-	Operation *ot.Operation  `json:"operation,omitempty"`
-	Presence  *CursorPayload `json:"presence,omitempty"`
-}
-
-type outboundMessage struct {
-	Type     string      `json:"type"`
-	Snapshot ot.Snapshot `json:"snapshot"`
-}
-
-type errorMessage struct {
-	Type  string `json:"type"`
-	Error string `json:"error"`
-}
-
-type CursorPayload struct {
-	Anchor int `json:"anchor"`
-	Head   int `json:"head"`
-}
-
-type presenceSnapshot struct {
-	Type      string              `json:"type"`
-	Presences map[string]Presence `json:"presences"`
-}
-
-type presenceUpdate struct {
-	Type     string   `json:"type"`
-	UserID   string   `json:"userId"`
-	Presence Presence `json:"presence"`
-}
-
 func (c *Client) readLoop() {
 	defer func() {
 		c.hub.unregister(c)
@@ -185,66 +149,58 @@ func (c *Client) readLoop() {
 			return
 		}
 
-		var msg inboundMessage
-		if err := json.Unmarshal(data, &msg); err != nil {
+		msg, err := UnmarshalClient(data)
+		if err != nil {
 			log.Printf("invalid ws message: %v", err)
 			continue
 		}
 
-		switch msg.Type {
-		case "operation":
-			if msg.Operation == nil {
-				continue
-			}
-			msg.Operation.Timestamp = time.Now().UTC()
+		switch m := msg.(type) {
+		case OperationMsg:
+			m.Operation.Timestamp = time.Now().UTC()
 			ctx, cancel := rWithTimeout()
-			snapshot, err := c.hub.service.ApplyOperation(ctx, c.documentID, *msg.Operation)
+			snapshot, err := c.hub.service.ApplyOperation(ctx, c.documentID, m.Operation)
 			cancel()
 			if err != nil {
 				log.Printf("apply op failed: %v", err)
-				payload, _ := json.Marshal(errorMessage{Type: "error", Error: err.Error()})
+				payload, _ := MarshalServer(ErrorMsg{Error: err.Error()})
 				select {
 				case c.send <- payload:
 				default:
 				}
 				continue
 			}
-			payload, _ := json.Marshal(outboundMessage{Type: "snapshot", Snapshot: snapshot})
+			payload, _ := MarshalServer(SnapshotMsg{Snapshot: snapshot})
 			c.hub.broadcast(c.documentID, payload)
-		case "sync":
+		case SyncMsg:
 			ctx, cancel := rWithTimeout()
 			snapshot, err := c.hub.service.Snapshot(ctx, c.documentID)
 			cancel()
 			if err != nil {
 				log.Printf("snapshot failed: %v", err)
-				payload, _ := json.Marshal(errorMessage{Type: "error", Error: err.Error()})
+				payload, _ := MarshalServer(ErrorMsg{Error: err.Error()})
 				select {
 				case c.send <- payload:
 				default:
 				}
 				continue
 			}
-			payload, _ := json.Marshal(outboundMessage{Type: "snapshot", Snapshot: snapshot})
+			payload, _ := MarshalServer(SnapshotMsg{Snapshot: snapshot})
 			select {
 			case c.send <- payload:
 			default:
 			}
-		case "presence":
-			if msg.Presence == nil {
-				continue
-			}
+		case PresenceMsg:
 			pres := Presence{
 				UserID: c.userID,
 				Name:   c.userID,
 				Color:  assignColor(c.userID),
-				Anchor: msg.Presence.Anchor,
-				Head:   msg.Presence.Head,
+				Anchor: m.Presence.Anchor,
+				Head:   m.Presence.Head,
 			}
 			c.hub.presence.Update(c.documentID, pres)
-			payload, _ := json.Marshal(presenceUpdate{Type: "presenceUpdate", UserID: c.userID, Presence: pres})
+			payload, _ := MarshalServer(PresenceUpdateMsg{UserID: c.userID, Presence: pres})
 			c.hub.broadcast(c.documentID, payload)
-		default:
-			log.Printf("unsupported message type: %s", msg.Type)
 		}
 	}
 }

@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState, type RefObject } from 'react'
 
+import { encodeClientMessage } from '../../../lib/protocol'
 import type { Presence, ServerMessage } from '../../../lib/protocol'
 
 export function usePresence(socketRef: RefObject<WebSocket | null>) {
@@ -16,12 +17,7 @@ export function usePresence(socketRef: RefObject<WebSocket | null>) {
         if (!socket || socket.readyState !== WebSocket.OPEN) {
           return
         }
-        socket.send(
-          JSON.stringify({
-            type: 'presence',
-            presence: { anchor, head },
-          })
-        )
+        socket.send(encodeClientMessage({ type: 'presence', presence: { anchor, head } }))
         presenceTimerRef.current = null
       }, 100)
     },
