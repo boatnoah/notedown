@@ -11,7 +11,7 @@ func initDoc(t *testing.T, m *Manager, id string) {
 
 func apply(t *testing.T, m *Manager, id string, op Operation) Snapshot {
 	t.Helper()
-	snap, err := m.Apply(id, op)
+	snap, _, err := m.Apply(id, op)
 	if err != nil {
 		t.Fatalf("Apply failed: %v", err)
 	}
@@ -200,9 +200,42 @@ func TestInvalidClientVersion(t *testing.T) {
 	m := NewManager()
 	initDoc(t, m, "doc1")
 
-	_, err := m.Apply("doc1", Operation{Kind: OperationInsert, ClientVersion: 99, Offset: 0, Text: "x"})
+	_, _, err := m.Apply("doc1", Operation{Kind: OperationInsert, ClientVersion: 99, Offset: 0, Text: "x"})
 	if err == nil {
 		t.Fatal("expected error for future client version, got nil")
+	}
+}
+
+// TestApplyReturnsCanonicalOp verifies that Apply returns the post-transform
+// operation so callers can persist it for correct replay via ApplyDirect.
+func TestApplyReturnsCanonicalOp(t *testing.T) {
+	m := NewManager()
+	initDoc(t, m, "doc1")
+
+	// Apply a first op to advance the server to v1.
+	_, canon0, _ := m.Apply("doc1", Operation{Kind: OperationInsert, ClientVersion: 0, Offset: 0, Text: "A"})
+
+	// A concurrent op at v0 is transformed: Insert@0 "B" → Insert@1 "B".
+	_, canon1, err := m.Apply("doc1", Operation{Kind: OperationInsert, ClientVersion: 0, Offset: 0, Text: "B"})
+	if err != nil {
+		t.Fatalf("Apply failed: %v", err)
+	}
+	if canon1.Offset != 1 {
+		t.Fatalf("canonical offset want 1, got %d", canon1.Offset)
+	}
+
+	// Replay both canonical ops with ApplyDirect into a fresh manager.
+	m2 := NewManager()
+	initDoc(t, m2, "doc2")
+	if _, err := m2.ApplyDirect("doc2", canon0); err != nil {
+		t.Fatalf("ApplyDirect canon0: %v", err)
+	}
+	if _, err := m2.ApplyDirect("doc2", canon1); err != nil {
+		t.Fatalf("ApplyDirect canon1: %v", err)
+	}
+	snap, _ := m2.Snapshot("doc2")
+	if snap.Content != "AB" {
+		t.Fatalf("replay want %q, got %q", "AB", snap.Content)
 	}
 }
 

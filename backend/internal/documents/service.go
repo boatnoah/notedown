@@ -64,7 +64,7 @@ func (s *Service) ensureLoaded(ctx context.Context, documentID string) error {
 			return err
 		}
 		for _, op := range ops {
-			if _, err := s.manager.Apply(documentID, op); err != nil {
+			if _, err := s.manager.ApplyDirect(documentID, op); err != nil {
 				return err
 			}
 		}
@@ -116,13 +116,13 @@ func (s *Service) ApplyOperation(ctx context.Context, documentID string, op ot.O
 		return ot.Snapshot{}, err
 	}
 
-	snapshot, err := s.manager.Apply(documentID, op)
+	snapshot, canonical, err := s.manager.Apply(documentID, op)
 	if err != nil {
 		return ot.Snapshot{}, err
 	}
 
 	if s.ops != nil {
-		_ = s.ops.Append(ctx, documentID, op)
+		_ = s.ops.Append(ctx, documentID, canonical)
 	}
 	return snapshot, nil
 }

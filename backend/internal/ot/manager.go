@@ -42,7 +42,13 @@ type Manager struct {
 type docState struct {
 	Version int64
 	Content []rune
-	history []Operation // canonical operations in application order
+	// history holds canonical operations in application order. len(history)
+	// always equals int(Version). It grows by one entry per applied operation,
+	// so memory scales with total edit count. A future pruning pass — keyed on
+	// the minimum ClientVersion across active sessions (available from the
+	// presence/hub layer) — can reclaim history entries that no concurrent
+	// client could ever need to transform against.
+	history []Operation
 }
 
 // NewManager constructs an empty OT manager.
@@ -77,11 +83,45 @@ func (m *Manager) Snapshot(documentID string) (Snapshot, error) {
 	}, nil
 }
 
-// Apply merges an operation into the canonical document state. If the
-// operation's ClientVersion is behind the current document version, it is
-// transformed against every operation applied since that version before being
-// applied, ensuring convergent state across concurrent editors.
-func (m *Manager) Apply(documentID string, op Operation) (Snapshot, error) {
+// Apply transforms op against any operations that occurred since op.ClientVersion,
+// applies the resulting canonical operation, and returns both the updated Snapshot
+// and the canonical operation. Callers should persist the returned canonical
+// operation rather than the original so that replay via ApplyDirect is correct.
+func (m *Manager) Apply(documentID string, op Operation) (Snapshot, Operation, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	state, ok := m.docs[documentID]
+	if !ok {
+		return Snapshot{}, Operation{}, errors.New("document not initialized")
+	}
+
+	if op.ClientVersion < 0 || op.ClientVersion > state.Version {
+		return Snapshot{}, Operation{}, errors.New("invalid client version")
+	}
+
+	// len(state.history) == int(state.Version) is the loop invariant maintained
+	// by applyToState; the cast is safe after the bounds check above.
+	start := int(op.ClientVersion)
+	for _, concurrent := range state.history[start:] {
+		op = transform(op, concurrent)
+	}
+
+	if err := applyToState(state, op); err != nil {
+		return Snapshot{}, Operation{}, err
+	}
+
+	return Snapshot{
+		DocumentID: documentID,
+		Version:    state.Version,
+		Content:    string(state.Content),
+	}, op, nil
+}
+
+// ApplyDirect applies op without transformation. It is intended for replaying
+// canonical operations loaded from persistent storage, where the transformation
+// step was already performed when the operation was first applied live.
+func (m *Manager) ApplyDirect(documentID string, op Operation) (Snapshot, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -90,39 +130,39 @@ func (m *Manager) Apply(documentID string, op Operation) (Snapshot, error) {
 		return Snapshot{}, errors.New("document not initialized")
 	}
 
-	if op.ClientVersion < 0 || op.ClientVersion > state.Version {
-		return Snapshot{}, errors.New("invalid client version")
+	if err := applyToState(state, op); err != nil {
+		return Snapshot{}, err
 	}
-
-	for _, concurrent := range state.history[op.ClientVersion:] {
-		op = transform(op, concurrent)
-	}
-
-	switch op.Kind {
-	case OperationInsert:
-		if op.Offset < 0 || op.Offset > len(state.Content) {
-			return Snapshot{}, errors.New("insert offset out of bounds")
-		}
-		before := append([]rune{}, state.Content[:op.Offset]...)
-		after := append([]rune{}, state.Content[op.Offset:]...)
-		state.Content = append(before, append([]rune(op.Text), after...)...)
-	case OperationDelete:
-		if op.Offset < 0 || op.Offset+op.Length > len(state.Content) {
-			return Snapshot{}, errors.New("delete range out of bounds")
-		}
-		state.Content = append(append([]rune{}, state.Content[:op.Offset]...), state.Content[op.Offset+op.Length:]...)
-	default:
-		return Snapshot{}, errors.New("unsupported operation kind")
-	}
-
-	state.history = append(state.history, op)
-	state.Version++
 
 	return Snapshot{
 		DocumentID: documentID,
 		Version:    state.Version,
 		Content:    string(state.Content),
 	}, nil
+}
+
+// applyToState mutates state by applying op, appending the canonical op to
+// history, and incrementing Version. It does not acquire any locks.
+func applyToState(state *docState, op Operation) error {
+	switch op.Kind {
+	case OperationInsert:
+		if op.Offset < 0 || op.Offset > len(state.Content) {
+			return errors.New("insert offset out of bounds")
+		}
+		before := append([]rune{}, state.Content[:op.Offset]...)
+		after := append([]rune{}, state.Content[op.Offset:]...)
+		state.Content = append(before, append([]rune(op.Text), after...)...)
+	case OperationDelete:
+		if op.Offset < 0 || op.Offset+op.Length > len(state.Content) {
+			return errors.New("delete range out of bounds")
+		}
+		state.Content = append(append([]rune{}, state.Content[:op.Offset]...), state.Content[op.Offset+op.Length:]...)
+	default:
+		return errors.New("unsupported operation kind")
+	}
+	state.history = append(state.history, op)
+	state.Version++
+	return nil
 }
 
 // transform adjusts op so it produces the correct result when applied after
