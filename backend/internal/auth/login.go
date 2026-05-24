@@ -119,13 +119,14 @@ func (h *LoginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, refreshCookie(refreshToken, int(refreshTokenTTL.Seconds()), isSecure(r)))
 
 	if fn := h.onUserAuthenticated; fn != nil {
+		baseCtx := context.WithoutCancel(r.Context())
 		go func() {
 			defer func() {
-				if r := recover(); r != nil {
-					log.Printf("onUserAuthenticated panic: %v", r)
+				if rec := recover(); rec != nil {
+					log.Printf("onUserAuthenticated panic: %v", rec)
 				}
 			}()
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel := context.WithTimeout(baseCtx, 30*time.Second)
 			defer cancel()
 			fn(ctx, user.ID)
 		}()
