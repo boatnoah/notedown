@@ -27,9 +27,13 @@ const indexRoute = createRoute({
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
-  validateSearch: (search: Record<string, unknown>) => ({
-    redirect: typeof search.redirect === 'string' ? search.redirect : undefined,
-  }),
+  validateSearch: (search: Record<string, unknown>) => {
+    const raw = search.redirect
+    // Accept only same-origin relative paths to prevent open-redirect attacks.
+    const redirect =
+      typeof raw === 'string' && raw.startsWith('/') && !raw.startsWith('//') ? raw : undefined
+    return { redirect }
+  },
   component: LoginPage,
 })
 

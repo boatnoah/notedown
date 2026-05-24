@@ -9,7 +9,6 @@ export function EditorPage() {
   const { room } = useSearch({ from: '/auth/editor' })
   const navigate = useNavigate()
 
-  const [documentId, setDocumentId] = useState<string | undefined>(room)
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -18,26 +17,23 @@ export function EditorPage() {
     let cancelled = false
 
     async function load() {
+      setLoading(true)
+      setError(null)
+      setSnapshot(null)
       try {
-        let id = documentId
-
-        if (!id) {
+        if (!room) {
           const doc = await createDocument()
-          id = doc.id
           if (!cancelled) {
-            setDocumentId(id)
-            await navigate({ to: '/editor', search: { room: id }, replace: true })
+            // Navigate updates the URL (and room), triggering this effect again
+            // to fetch the snapshot. Return here to avoid a duplicate fetch.
+            await navigate({ to: '/editor', search: { room: doc.id }, replace: true })
           }
+          return
         }
 
-        if (!id) {
-          throw new Error('Unable to determine document ID')
-        }
-
-        const snap = await fetchSnapshot(id)
+        const snap = await fetchSnapshot(room)
         if (!cancelled) {
           setSnapshot(snap)
-          setError(null)
         }
       } catch (err) {
         if (!cancelled) {
@@ -55,15 +51,15 @@ export function EditorPage() {
     return () => {
       cancelled = true
     }
-  }, [documentId, navigate])
+  }, [room, navigate])
 
   if (loading) {
     return <p>Loading editor…</p>
   }
 
-  if (error || !documentId || !snapshot) {
+  if (error || !room || !snapshot) {
     return <p className="error">Failed to load editor. {error ?? 'Unknown error'}</p>
   }
 
-  return <Editor documentId={documentId} initialSnapshot={snapshot} />
+  return <Editor documentId={room} initialSnapshot={snapshot} />
 }
