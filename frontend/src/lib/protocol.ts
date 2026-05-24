@@ -55,10 +55,44 @@ export type ServerMessage =
   | PresenceUpdateMessage
   | ErrorMessage
 
+// Encodes a ClientMessage to a JSON string for sending over WebSocket.
+// All client→server sends must go through this function.
+export function encodeClientMessage(msg: ClientMessage): string {
+  return JSON.stringify(msg)
+}
+
+// Decodes a raw WebSocket frame into a typed ServerMessage.
+// Returns null if the payload is not a recognised server message kind.
 export function parseServerMessage(data: string): ServerMessage | null {
   try {
-    return JSON.parse(data) as ServerMessage
+    const parsed: unknown = JSON.parse(data)
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      !Object.prototype.hasOwnProperty.call(parsed, 'type')
+    ) {
+      return null
+    }
+    const { type } = parsed as { type: unknown }
+    if (typeof type !== 'string') {
+      return null
+    }
+    switch (type) {
+      case 'snapshot':
+      case 'presenceSnapshot':
+      case 'presenceUpdate':
+      case 'error':
+        return parsed as ServerMessage
+      default:
+        return null
+    }
   } catch {
     return null
   }
+}
+
+// Use in the default branch of a switch over ServerMessage to get a
+// compile error whenever a new message kind is added to the union.
+export function assertNever(x: never): never {
+  throw new Error(`Unhandled server message type: ${JSON.stringify(x)}`)
 }

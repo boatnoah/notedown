@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, type RefObject } from 'react'
 
 import { getWebSocketUrl } from '../../../lib/config'
 import type { Operation, ServerMessage } from '../../../lib/protocol'
-import { parseServerMessage } from '../../../lib/protocol'
+import { encodeClientMessage, parseServerMessage } from '../../../lib/protocol'
 
 type UseCollaborationSessionOptions = {
   documentId: string
@@ -18,7 +18,7 @@ function flushPendingOps(socket: WebSocket, pending: Operation[]) {
   while (pending.length) {
     const next = pending.shift()
     if (next) {
-      socket.send(JSON.stringify({ type: 'operation', operation: next }))
+      socket.send(encodeClientMessage({ type: 'operation', operation: next }))
     }
   }
 }
@@ -46,7 +46,7 @@ export function useCollaborationSession({
         pendingOpsRef.current.push(op)
         return
       }
-      socket.send(JSON.stringify({ type: 'operation', operation: op }))
+      socket.send(encodeClientMessage({ type: 'operation', operation: op }))
     },
     [socketRef, isApplyingRemoteRef]
   )
@@ -86,7 +86,7 @@ export function useCollaborationSession({
 
     socket.addEventListener('open', () => {
       awaitingSyncRef.current = true
-      socket.send(JSON.stringify({ type: 'sync' }))
+      socket.send(encodeClientMessage({ type: 'sync' }))
     })
 
     socket.addEventListener('message', (event) => {

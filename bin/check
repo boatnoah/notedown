@@ -54,8 +54,9 @@ fi
 
 echo "▶ frontend"
 cd "$ROOT/frontend"
-run "prettier" npx prettier --check .
-run "tsc"      npx tsc --noEmit
+run "prettier"   npx prettier --check .
+run "tsc"        npx tsc --noEmit
+run "vitest"     npm test
 run "vite build" npm run build
 
 echo "----------------------------------------"
