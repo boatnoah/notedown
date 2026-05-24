@@ -32,7 +32,8 @@ const loginRoute = createRoute({
     // Accept only same-origin relative paths to prevent open-redirect attacks.
     const redirect =
       typeof raw === 'string' && raw.startsWith('/') && !raw.startsWith('//') ? raw : undefined
-    return { redirect }
+    const registered = search.registered === true || search.registered === 'true' ? true : undefined
+    return { redirect, registered }
   },
   component: LoginPage,
 })
@@ -51,7 +52,7 @@ const authRoute = createRoute({
     if (!isAuthenticated()) {
       throw redirect({
         to: '/login',
-        search: { redirect: location.href },
+        search: { redirect: location.href, registered: undefined },
       })
     }
   },
