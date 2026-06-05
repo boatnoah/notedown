@@ -46,10 +46,17 @@ func NewRouter(deps Dependencies) http.Handler {
 		_, _ = w.Write([]byte("ok"))
 	})
 
+	// Per-IP rate limits guard the auth endpoints against brute force and
+	// token hammering. Limits are scoped per route so other endpoints are
+	// unaffected.
+	loginLimit := newRateLimiter(10)
+	registerLimit := newRateLimiter(5)
+	refreshLimit := newRateLimiter(30)
+
 	r.Route("/auth", func(r chi.Router) {
-		r.Post("/register", deps.RegisterHandler.ServeHTTP)
-		r.Post("/login", deps.LoginHandler.ServeHTTP)
-		r.Post("/refresh", deps.RefreshHandler.ServeHTTP)
+		r.With(registerLimit.Middleware).Post("/register", deps.RegisterHandler.ServeHTTP)
+		r.With(loginLimit.Middleware).Post("/login", deps.LoginHandler.ServeHTTP)
+		r.With(refreshLimit.Middleware).Post("/refresh", deps.RefreshHandler.ServeHTTP)
 		r.Post("/logout", deps.LogoutHandler.ServeHTTP)
 	})
 
