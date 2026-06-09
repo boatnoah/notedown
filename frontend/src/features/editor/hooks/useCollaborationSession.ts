@@ -45,6 +45,7 @@ export function useCollaborationSession({
   const pendingOpsRef = useRef<Operation[]>([])
   const latestVersionRef = useRef(initialVersion)
   const awaitingSyncRef = useRef(true)
+  const forceNextSnapshotRef = useRef(false)
 
   const sendOperation = useCallback(
     (op: Operation) => {
@@ -64,7 +65,8 @@ export function useCollaborationSession({
   const handleServerMessage = useCallback(
     (msg: ServerMessage, socket: WebSocket) => {
       if (msg.type === 'snapshot') {
-        if (msg.snapshot.version > latestVersionRef.current) {
+        if (forceNextSnapshotRef.current || msg.snapshot.version > latestVersionRef.current) {
+          forceNextSnapshotRef.current = false
           latestVersionRef.current = msg.snapshot.version
           onSnapshot(msg.snapshot.content, msg.snapshot.version)
         }
@@ -78,6 +80,12 @@ export function useCollaborationSession({
 
       if (msg.type === 'error') {
         console.error('Server error:', msg.error)
+        // The local editor already applied a change the server refused
+        // (e.g. read-only access), so the documents have diverged. Resync
+        // and force-apply the result — its version won't have advanced, so
+        // the version guard alone would ignore it.
+        forceNextSnapshotRef.current = true
+        socket.send(encodeClientMessage({ type: 'sync' }))
         return
       }
 

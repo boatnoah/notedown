@@ -265,3 +265,104 @@ func TestWebsocketEchoesBearerSubprotocol(t *testing.T) {
 		t.Fatalf("negotiated subprotocol = %q, want %q", got, "bearer")
 	}
 }
+
+// readSnapshotContent reads frames until a snapshot arrives and returns its
+// raw snapshot payload.
+func readSnapshotContent(t *testing.T, conn *websocket.Conn) string {
+	t.Helper()
+	frame := readMessageOfType(t, conn, "snapshot")
+	return string(frame["snapshot"])
+}
+
+func TestOperationsRelayBetweenClients(t *testing.T) {
+	svc, srv := newTestHub(t)
+	doc, err := svc.CreateDocument(context.Background(), "owner-1")
+	if err != nil {
+		t.Fatalf("create doc: %v", err)
+	}
+	if _, err := svc.SetShareMode(context.Background(), doc.ID, "owner-1", "edit"); err != nil {
+		t.Fatalf("set share mode: %v", err)
+	}
+
+	ownerConn := mustDial(t, srv, doc.ID, mintToken(t, "owner-1"))
+	guestConn := mustDial(t, srv, doc.ID, mintToken(t, "guest-1"))
+	readSnapshotContent(t, ownerConn)
+	readSnapshotContent(t, guestConn)
+
+	sendOperation(t, ownerConn, "afa")
+	if got := readSnapshotContent(t, guestConn); !strings.Contains(got, "afa") {
+		t.Fatalf("guest did not receive owner's edit: %s", got)
+	}
+	readSnapshotContent(t, ownerConn) // drain owner's own broadcast
+
+	sendOperation(t, guestConn, "asdf")
+	if got := readSnapshotContent(t, ownerConn); !strings.Contains(got, "asdf") {
+		t.Fatalf("owner did not receive guest's edit: %s", got)
+	}
+}
+
+// Share-mode changes must take effect on connections that are already open:
+// a viewer who connected under "read" gains editing as soon as the owner
+// widens the mode to "edit". Regression test for live clients silently
+// diverging because canEdit was frozen at connect time.
+func TestShareModeWideningAppliesToLiveConnections(t *testing.T) {
+	svc, srv := newTestHub(t)
+	doc, err := svc.CreateDocument(context.Background(), "owner-1")
+	if err != nil {
+		t.Fatalf("create doc: %v", err)
+	}
+	if _, err := svc.SetShareMode(context.Background(), doc.ID, "owner-1", "read"); err != nil {
+		t.Fatalf("set share mode read: %v", err)
+	}
+
+	ownerConn := mustDial(t, srv, doc.ID, mintToken(t, "owner-1"))
+	guestConn := mustDial(t, srv, doc.ID, mintToken(t, "guest-1"))
+	readSnapshotContent(t, ownerConn)
+	readSnapshotContent(t, guestConn)
+
+	if _, err := svc.SetShareMode(context.Background(), doc.ID, "owner-1", "edit"); err != nil {
+		t.Fatalf("set share mode edit: %v", err)
+	}
+
+	sendOperation(t, guestConn, "asdf")
+	if got := readSnapshotContent(t, ownerConn); !strings.Contains(got, "asdf") {
+		t.Fatalf("owner did not receive guest's edit after share mode widened: %s", got)
+	}
+}
+
+// The inverse: tightening edit -> read revokes editing on live connections.
+func TestShareModeTighteningRevokesLiveConnections(t *testing.T) {
+	svc, srv := newTestHub(t)
+	doc, err := svc.CreateDocument(context.Background(), "owner-1")
+	if err != nil {
+		t.Fatalf("create doc: %v", err)
+	}
+	if _, err := svc.SetShareMode(context.Background(), doc.ID, "owner-1", "edit"); err != nil {
+		t.Fatalf("set share mode edit: %v", err)
+	}
+
+	guestConn := mustDial(t, srv, doc.ID, mintToken(t, "guest-1"))
+	readSnapshotContent(t, guestConn)
+
+	if _, err := svc.SetShareMode(context.Background(), doc.ID, "owner-1", "read"); err != nil {
+		t.Fatalf("set share mode read: %v", err)
+	}
+
+	sendOperation(t, guestConn, "asdf")
+	frame := readMessageOfType(t, guestConn, "error")
+	var errMsg string
+	_ = json.Unmarshal(frame["error"], &errMsg)
+	if !strings.Contains(errMsg, "read-only") {
+		t.Fatalf("expected read-only rejection, got: %s", errMsg)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	snapshot, err := svc.Snapshot(ctx, doc.ID)
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	if strings.Contains(snapshot.Content, "asdf") {
+		t.Fatalf("document mutated by revoked editor: %q", snapshot.Content)
+	}
+}

@@ -109,7 +109,6 @@ func (h *Hub) HandleWebsocket(w http.ResponseWriter, r *http.Request) {
 		documentID: documentID,
 		userID:     identity.UserID,
 		name:       identity.Name,
-		canEdit:    doc.CanEdit(identity.UserID),
 	}
 
 	h.register(client)
@@ -199,7 +198,20 @@ type Client struct {
 	documentID string
 	userID     string
 	name       string
-	canEdit    bool
+}
+
+// canEdit checks the document's current share mode so that owners changing
+// sharing mid-session take effect on live connections — both widening
+// (read → edit lets connected viewers start editing) and tightening
+// (edit → read revokes editing without requiring a reconnect).
+func (c *Client) canEdit() bool {
+	ctx, cancel := rWithTimeout()
+	defer cancel()
+	doc, err := c.hub.service.GetDocument(ctx, c.documentID)
+	if err != nil {
+		return false
+	}
+	return doc.CanEdit(c.userID)
 }
 
 // displayName returns the human-readable name to surface in presence.
@@ -230,7 +242,7 @@ func (c *Client) readLoop() {
 
 		switch m := msg.(type) {
 		case OperationMsg:
-			if !c.canEdit {
+			if !c.canEdit() {
 				if payload, merr := MarshalServer(ErrorMsg{Error: "read-only access: operations are not permitted"}); merr == nil {
 					select {
 					case c.send <- payload:
