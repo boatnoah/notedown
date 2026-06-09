@@ -42,6 +42,17 @@ func (r *DocumentRepository) Get(ctx context.Context, id string) (*types.Documen
 	return &clone, nil
 }
 
+func (r *DocumentRepository) Delete(ctx context.Context, id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if _, ok := r.data[id]; !ok {
+		return documents.ErrNotFound
+	}
+	delete(r.data, id)
+	return nil
+}
+
 func (r *DocumentRepository) ListByOwner(ctx context.Context, ownerID string) ([]*types.Document, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

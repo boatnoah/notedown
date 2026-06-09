@@ -86,9 +86,11 @@ func TestDocumentsEndpointsRequireAuth(t *testing.T) {
 	h := newTestRouter(t)
 	for _, tc := range []struct{ method, path string }{
 		{http.MethodPost, "/documents"},
+		{http.MethodGet, "/documents"},
 		{http.MethodGet, "/documents/some-id"},
 		{http.MethodGet, "/documents/some-id/meta"},
 		{http.MethodPost, "/documents/some-id/share"},
+		{http.MethodDelete, "/documents/some-id"},
 	} {
 		rec := request(t, h, tc.method, tc.path, "", "")
 		if rec.Code != http.StatusUnauthorized {
@@ -169,6 +171,88 @@ func TestShareModeUpdateRejectsInvalidMode(t *testing.T) {
 func TestShareModeUpdateUnknownDocumentIs404(t *testing.T) {
 	h := newTestRouter(t)
 	rec := request(t, h, http.MethodPost, "/documents/no-such-doc/share", mintToken(t, "owner-1"), `{"shareMode":"read"}`)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("got %d, want 404", rec.Code)
+	}
+}
+
+func listDocs(t *testing.T, h http.Handler, token string) []types.Document {
+	t.Helper()
+	rec := request(t, h, http.MethodGet, "/documents", token, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list documents: got %d: %s", rec.Code, rec.Body.String())
+	}
+	var docs []types.Document
+	if err := json.Unmarshal(rec.Body.Bytes(), &docs); err != nil {
+		t.Fatalf("decode document list: %v", err)
+	}
+	return docs
+}
+
+func TestListDocumentsReturnsOnlyOwnDocuments(t *testing.T) {
+	h := newTestRouter(t)
+	ownerToken := mintToken(t, "owner-1")
+	otherToken := mintToken(t, "owner-2")
+
+	doc := createDoc(t, h, ownerToken)
+	createDoc(t, h, otherToken)
+
+	docs := listDocs(t, h, ownerToken)
+	if len(docs) != 1 {
+		t.Fatalf("got %d documents, want 1", len(docs))
+	}
+	if docs[0].ID != doc.ID {
+		t.Fatalf("got document %q, want %q", docs[0].ID, doc.ID)
+	}
+}
+
+func TestListDocumentsEmptyReturnsJSONArray(t *testing.T) {
+	h := newTestRouter(t)
+	rec := request(t, h, http.MethodGet, "/documents", mintToken(t, "owner-1"), "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d, want 200", rec.Code)
+	}
+	var docs []types.Document
+	if err := json.Unmarshal(rec.Body.Bytes(), &docs); err != nil {
+		t.Fatalf("decode body %q: %v", rec.Body.String(), err)
+	}
+	if docs == nil {
+		t.Fatalf("body = %q, want JSON array (not null)", rec.Body.String())
+	}
+}
+
+func TestDeleteDocumentByOwner(t *testing.T) {
+	h := newTestRouter(t)
+	ownerToken := mintToken(t, "owner-1")
+	doc := createDoc(t, h, ownerToken)
+
+	rec := request(t, h, http.MethodDelete, "/documents/"+doc.ID, ownerToken, "")
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("delete: got %d, want 204: %s", rec.Code, rec.Body.String())
+	}
+	if docs := listDocs(t, h, ownerToken); len(docs) != 0 {
+		t.Fatalf("list after delete: got %d documents, want 0", len(docs))
+	}
+}
+
+func TestDeleteDocumentByNonOwnerForbidden(t *testing.T) {
+	h := newTestRouter(t)
+	ownerToken := mintToken(t, "owner-1")
+	doc := createDoc(t, h, ownerToken)
+
+	rec := request(t, h, http.MethodDelete, "/documents/"+doc.ID, mintToken(t, "intruder"), "")
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("delete as non-owner: got %d, want 403", rec.Code)
+	}
+	// The document must still exist for its owner.
+	if docs := listDocs(t, h, ownerToken); len(docs) != 1 {
+		t.Fatalf("list after forbidden delete: got %d documents, want 1", len(docs))
+	}
+}
+
+func TestDeleteDocumentNotFound(t *testing.T) {
+	h := newTestRouter(t)
+	rec := request(t, h, http.MethodDelete, "/documents/does-not-exist", mintToken(t, "owner-1"), "")
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("got %d, want 404", rec.Code)
 	}

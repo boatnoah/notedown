@@ -169,3 +169,23 @@ func (s *Service) ApplyOperation(ctx context.Context, documentID string, op ot.O
 func (s *Service) ListDocuments(ctx context.Context, ownerID string) ([]*types.Document, error) {
 	return s.docs.ListByOwner(ctx, ownerID)
 }
+
+// DeleteDocument removes a document. Only the owner may delete it; any other
+// requester gets ErrNotOwner.
+func (s *Service) DeleteDocument(ctx context.Context, documentID, requesterID string) error {
+	doc, err := s.docs.Get(ctx, documentID)
+	if err != nil {
+		return err
+	}
+	if doc.OwnerID != requesterID {
+		return ErrNotOwner
+	}
+	if err := s.docs.Delete(ctx, documentID); err != nil {
+		return err
+	}
+
+	s.loadMu.Lock()
+	delete(s.loaded, documentID)
+	s.loadMu.Unlock()
+	return nil
+}

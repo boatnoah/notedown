@@ -11,11 +11,16 @@ export type Operation = {
   text: string
 }
 
+export type ShareMode = 'private' | 'read' | 'edit'
+
 export type DocumentRecord = {
   id: string
+  ownerId: string
+  title: string
+  createdAt: string
+  updatedAt: string
+  shareMode: ShareMode
 }
-
-export type ShareMode = 'private' | 'read' | 'edit'
 
 export type DocumentMeta = {
   id: string
