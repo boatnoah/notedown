@@ -9,6 +9,11 @@ export type Operation = {
   offset: number
   length: number
   text: string
+  // Last server version this client had applied when it created the op.
+  // The server transforms the op against operations that landed after this
+  // version, so omitting it makes the server transform against the entire
+  // document history. Stamped by the op dispatcher at send time.
+  clientVersion?: number
 }
 
 export type ShareMode = 'private' | 'read' | 'edit'

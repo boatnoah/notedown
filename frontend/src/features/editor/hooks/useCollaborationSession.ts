@@ -4,6 +4,7 @@ import { getAccessToken } from '../../../lib/auth'
 import { getWebSocketUrl } from '../../../lib/config'
 import type { Operation, ServerMessage } from '../../../lib/protocol'
 import { encodeClientMessage, parseServerMessage } from '../../../lib/protocol'
+import { createOpDispatcher, type OpDispatcher } from '../lib/opDispatcher'
 
 // Browsers cannot attach an Authorization header to WebSocket handshakes, so
 // the access token rides along in the Sec-WebSocket-Protocol header as
@@ -24,15 +25,6 @@ type UseCollaborationSessionOptions = {
   onConnectionLost: () => void
 }
 
-function flushPendingOps(socket: WebSocket, pending: Operation[]) {
-  while (pending.length) {
-    const next = pending.shift()
-    if (next) {
-      socket.send(encodeClientMessage({ type: 'operation', operation: next }))
-    }
-  }
-}
-
 export function useCollaborationSession({
   documentId,
   initialVersion,
@@ -42,24 +34,19 @@ export function useCollaborationSession({
   onServerMessage,
   onConnectionLost,
 }: UseCollaborationSessionOptions) {
-  const pendingOpsRef = useRef<Operation[]>([])
   const latestVersionRef = useRef(initialVersion)
   const awaitingSyncRef = useRef(true)
   const forceNextSnapshotRef = useRef(false)
+  const dispatcherRef = useRef<OpDispatcher | null>(null)
 
   const sendOperation = useCallback(
     (op: Operation) => {
       if (isApplyingRemoteRef.current) {
         return
       }
-      const socket = socketRef.current
-      if (!socket || socket.readyState !== WebSocket.OPEN) {
-        pendingOpsRef.current.push(op)
-        return
-      }
-      socket.send(encodeClientMessage({ type: 'operation', operation: op }))
+      dispatcherRef.current?.enqueue(op)
     },
-    [socketRef, isApplyingRemoteRef]
+    [isApplyingRemoteRef]
   )
 
   const handleServerMessage = useCallback(
@@ -73,8 +60,11 @@ export function useCollaborationSession({
 
         if (awaitingSyncRef.current) {
           awaitingSyncRef.current = false
-          flushPendingOps(socket, pendingOpsRef.current)
+          dispatcherRef.current?.setBlocked(false)
         }
+        // Every snapshot settles the in-flight op (if any) and lets the next
+        // queued op go out stamped with the version we just recorded.
+        dispatcherRef.current?.onAck()
         return
       }
 
@@ -86,6 +76,7 @@ export function useCollaborationSession({
         // the version guard alone would ignore it.
         forceNextSnapshotRef.current = true
         socket.send(encodeClientMessage({ type: 'sync' }))
+        dispatcherRef.current?.onAck()
         return
       }
 
@@ -101,6 +92,14 @@ export function useCollaborationSession({
   useEffect(() => {
     const socket = openAuthenticatedSocket(getWebSocketUrl(documentId))
     socketRef.current = socket
+    dispatcherRef.current = createOpDispatcher(
+      () => latestVersionRef.current,
+      (op) => {
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(encodeClientMessage({ type: 'operation', operation: op }))
+        }
+      }
+    )
 
     socket.addEventListener('open', () => {
       awaitingSyncRef.current = true
@@ -116,7 +115,10 @@ export function useCollaborationSession({
       handleServerMessage(msg, socket)
     })
 
-    socket.addEventListener('close', onConnectionLost)
+    socket.addEventListener('close', () => {
+      dispatcherRef.current?.setBlocked(true)
+      onConnectionLost()
+    })
     socket.addEventListener('error', (err) => {
       console.error('WebSocket error:', err)
     })
@@ -124,6 +126,7 @@ export function useCollaborationSession({
     return () => {
       socket.close()
       socketRef.current = null
+      dispatcherRef.current = null
     }
   }, [documentId, handleServerMessage, onConnectionLost, socketRef])
 
