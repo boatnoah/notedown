@@ -366,3 +366,55 @@ func TestShareModeTighteningRevokesLiveConnections(t *testing.T) {
 		t.Fatalf("document mutated by revoked editor: %q", snapshot.Content)
 	}
 }
+
+// Typing char-by-char, the client stamps each op with the last server
+// version it applied and waits for the ack snapshot before sending the next
+// op. The server must apply the whole sequence — this is the contract the
+// frontend op dispatcher relies on (ops without clientVersion get
+// transformed against the entire history and fall out of bounds).
+func TestSequentialTypingWithClientVersionConverges(t *testing.T) {
+	svc, srv := newTestHub(t)
+	doc, err := svc.CreateDocument(context.Background(), "owner-1")
+	if err != nil {
+		t.Fatalf("create doc: %v", err)
+	}
+
+	conn := mustDial(t, srv, doc.ID, mintToken(t, "owner-1"))
+	readSnapshotContent(t, conn)
+
+	version := int64(0)
+	for i, ch := range "hello" {
+		op := map[string]any{
+			"type": "operation",
+			"operation": map[string]any{
+				"kind":          "insert",
+				"offset":        i,
+				"length":        1,
+				"text":          string(ch),
+				"clientVersion": version,
+			},
+		}
+		if err := conn.WriteJSON(op); err != nil {
+			t.Fatalf("write op %d: %v", i, err)
+		}
+		frame := readMessageOfType(t, conn, "snapshot")
+		var snap struct {
+			Version int64  `json:"version"`
+			Content string `json:"content"`
+		}
+		if err := json.Unmarshal(frame["snapshot"], &snap); err != nil {
+			t.Fatalf("decode snapshot: %v", err)
+		}
+		version = snap.Version
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	snapshot, err := svc.Snapshot(ctx, doc.ID)
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	if snapshot.Content != "hello" {
+		t.Fatalf("content = %q, want %q", snapshot.Content, "hello")
+	}
+}
