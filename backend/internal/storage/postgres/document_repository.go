@@ -49,6 +49,17 @@ func (r *DocumentRepository) Get(ctx context.Context, id string) (*types.Documen
 	}, nil
 }
 
+func (r *DocumentRepository) Delete(ctx context.Context, id string) error {
+	affected, err := r.q.DeleteDocument(ctx, id)
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return documents.ErrNotFound
+	}
+	return nil
+}
+
 func (r *DocumentRepository) ListByOwner(ctx context.Context, ownerID string) ([]*types.Document, error) {
 	rows, err := r.q.ListDocumentsByOwner(ctx, ownerID)
 	if err != nil {

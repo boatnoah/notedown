@@ -38,7 +38,7 @@ func NewRouter(deps Dependencies) http.Handler {
 	r.Use(middleware.Timeout(60 * time.Second))
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{deps.FrontendURL},
-		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
+		AllowedMethods:   []string{"GET", "POST", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Authorization", "Content-Type"},
 		AllowCredentials: true,
 		MaxAge:           300,
@@ -66,6 +66,8 @@ func NewRouter(deps Dependencies) http.Handler {
 	r.Route("/documents", func(r chi.Router) {
 		r.Use(auth.RequireAuth(deps.JWTSecret))
 		r.Post("/", createDocumentHandler(deps.DocumentService))
+		r.Get("/", listDocumentsHandler(deps.DocumentService))
+		r.Delete("/{id}", deleteDocumentHandler(deps.DocumentService))
 		r.Get("/{id}", getDocumentHandler(deps.DocumentService))
 		r.Get("/{id}/meta", getDocumentMetaHandler(deps.DocumentService))
 		r.Post("/{id}/share", updateShareModeHandler(deps.DocumentService))
@@ -119,6 +121,52 @@ func authorizeDocumentRead(w http.ResponseWriter, r *http.Request, svc *document
 		return nil, false
 	}
 	return doc, true
+}
+
+func listDocumentsHandler(svc *documents.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		identity, ok := auth.IdentityFromContext(r.Context())
+		if !ok {
+			http.Error(w, "missing access token", http.StatusUnauthorized)
+			return
+		}
+		docs, err := svc.ListDocuments(r.Context(), identity.UserID)
+		if err != nil {
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+		if docs == nil {
+			docs = []*types.Document{}
+		}
+		respondJSON(w, docs)
+	}
+}
+
+func deleteDocumentHandler(svc *documents.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		identity, ok := auth.IdentityFromContext(r.Context())
+		if !ok {
+			http.Error(w, "missing access token", http.StatusUnauthorized)
+			return
+		}
+		id := chi.URLParam(r, "id")
+		if id == "" {
+			http.Error(w, "missing id", http.StatusBadRequest)
+			return
+		}
+		if err := svc.DeleteDocument(r.Context(), id, identity.UserID); err != nil {
+			switch {
+			case errors.Is(err, documents.ErrNotOwner):
+				http.Error(w, "forbidden", http.StatusForbidden)
+			case errors.Is(err, documents.ErrNotFound):
+				http.Error(w, "document not found", http.StatusNotFound)
+			default:
+				http.Error(w, "internal server error", http.StatusInternalServerError)
+			}
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
 }
 
 func getDocumentHandler(svc *documents.Service) http.HandlerFunc {

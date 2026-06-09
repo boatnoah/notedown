@@ -12,6 +12,7 @@ type DocumentRepository interface {
 	Save(ctx context.Context, doc *types.Document) error
 	Get(ctx context.Context, id string) (*types.Document, error)
 	ListByOwner(ctx context.Context, ownerID string) ([]*types.Document, error)
+	Delete(ctx context.Context, id string) error
 }
 
 // OperationRepository stores the ordered list of CRDT operations for each document.

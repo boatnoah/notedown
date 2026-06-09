@@ -33,3 +33,8 @@ export async function updateShareMode(id: string, shareMode: ShareMode): Promise
   await expectOk(res, 'Failed to update sharing')
   return res.json() as Promise<DocumentMeta>
 }
+
+export async function deleteDocument(id: string): Promise<void> {
+  const res = await apiFetch(`/documents/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  await expectOk(res, 'Failed to delete document')
+}

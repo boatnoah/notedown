@@ -16,3 +16,7 @@ SELECT id, owner_id, title, share_mode, created_at, updated_at
 FROM documents
 WHERE owner_id = $1
 ORDER BY created_at DESC;
+
+-- name: DeleteDocument :execrows
+DELETE FROM documents
+WHERE id = $1;
