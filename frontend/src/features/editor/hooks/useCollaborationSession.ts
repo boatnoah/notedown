@@ -1,8 +1,18 @@
 import { useCallback, useEffect, useRef, type RefObject } from 'react'
 
+import { getAccessToken } from '../../../lib/auth'
 import { getWebSocketUrl } from '../../../lib/config'
 import type { Operation, ServerMessage } from '../../../lib/protocol'
 import { encodeClientMessage, parseServerMessage } from '../../../lib/protocol'
+
+// Browsers cannot attach an Authorization header to WebSocket handshakes, so
+// the access token rides along in the Sec-WebSocket-Protocol header as
+// ["bearer", "<token>"]. The server validates it before upgrading and echoes
+// "bearer" back. Must match backend/internal/realtime/hub.go.
+function openAuthenticatedSocket(url: string): WebSocket {
+  const token = getAccessToken()
+  return token ? new WebSocket(url, ['bearer', token]) : new WebSocket(url)
+}
 
 type UseCollaborationSessionOptions = {
   documentId: string
@@ -81,7 +91,7 @@ export function useCollaborationSession({
   }, [initialVersion])
 
   useEffect(() => {
-    const socket = new WebSocket(getWebSocketUrl(documentId))
+    const socket = openAuthenticatedSocket(getWebSocketUrl(documentId))
     socketRef.current = socket
 
     socket.addEventListener('open', () => {

@@ -45,7 +45,7 @@ func main() {
 	})
 	userService := users.NewService(userRepo)
 
-	realtimeHub := realtime.NewHub(docService)
+	realtimeHub := realtime.NewHub(docService, cfg.JWTSecret)
 	registerHandler := auth.NewRegisterHandler(userService)
 	loginHandler := auth.NewLoginHandler(userRepo, authSessionRepo, cfg.JWTSecret)
 	loginHandler.SetOnUserAuthenticated(func(ctx context.Context, userID string) {
@@ -64,6 +64,7 @@ func main() {
 		DocumentService: docService,
 		RealtimeHub:     realtimeHub,
 		FrontendURL:     cfg.FrontendURL,
+		JWTSecret:       cfg.JWTSecret,
 	})
 
 	log.Printf("listening on %s", cfg.HTTPAddr)

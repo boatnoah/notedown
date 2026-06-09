@@ -2,7 +2,6 @@ package memory
 
 import (
 	"context"
-	"errors"
 	"sync"
 
 	"github.com/boatnoah/notedown/internal/documents"
@@ -37,7 +36,7 @@ func (r *DocumentRepository) Get(ctx context.Context, id string) (*types.Documen
 
 	doc, ok := r.data[id]
 	if !ok {
-		return nil, errors.New("document not found")
+		return nil, documents.ErrNotFound
 	}
 	clone := *doc
 	return &clone, nil

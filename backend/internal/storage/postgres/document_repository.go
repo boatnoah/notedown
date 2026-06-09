@@ -25,6 +25,7 @@ func (r *DocumentRepository) Save(ctx context.Context, doc *types.Document) erro
 		ID:        doc.ID,
 		OwnerID:   doc.OwnerID,
 		Title:     doc.Title,
+		ShareMode: string(doc.ShareMode),
 		CreatedAt: doc.CreatedAt,
 		UpdatedAt: doc.UpdatedAt,
 	})
@@ -34,7 +35,7 @@ func (r *DocumentRepository) Get(ctx context.Context, id string) (*types.Documen
 	row, err := r.q.GetDocument(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New("document not found")
+			return nil, documents.ErrNotFound
 		}
 		return nil, err
 	}
@@ -42,6 +43,7 @@ func (r *DocumentRepository) Get(ctx context.Context, id string) (*types.Documen
 		ID:        row.ID,
 		OwnerID:   row.OwnerID,
 		Title:     row.Title,
+		ShareMode: types.ShareMode(row.ShareMode),
 		CreatedAt: row.CreatedAt,
 		UpdatedAt: row.UpdatedAt,
 	}, nil
@@ -58,6 +60,7 @@ func (r *DocumentRepository) ListByOwner(ctx context.Context, ownerID string) ([
 			ID:        row.ID,
 			OwnerID:   row.OwnerID,
 			Title:     row.Title,
+			ShareMode: types.ShareMode(row.ShareMode),
 			CreatedAt: row.CreatedAt,
 			UpdatedAt: row.UpdatedAt,
 		}

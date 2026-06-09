@@ -11,26 +11,19 @@ import (
 )
 
 const getDocument = `-- name: GetDocument :one
-SELECT id, owner_id, title, created_at, updated_at
+SELECT id, owner_id, title, share_mode, created_at, updated_at
 FROM documents
 WHERE id = $1
 `
 
-type GetDocumentRow struct {
-	ID        string
-	OwnerID   string
-	Title     string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-func (q *Queries) GetDocument(ctx context.Context, id string) (GetDocumentRow, error) {
+func (q *Queries) GetDocument(ctx context.Context, id string) (Document, error) {
 	row := q.db.QueryRowContext(ctx, getDocument, id)
-	var i GetDocumentRow
+	var i Document
 	err := row.Scan(
 		&i.ID,
 		&i.OwnerID,
 		&i.Title,
+		&i.ShareMode,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -38,33 +31,26 @@ func (q *Queries) GetDocument(ctx context.Context, id string) (GetDocumentRow, e
 }
 
 const listDocumentsByOwner = `-- name: ListDocumentsByOwner :many
-SELECT id, owner_id, title, created_at, updated_at
+SELECT id, owner_id, title, share_mode, created_at, updated_at
 FROM documents
 WHERE owner_id = $1
 ORDER BY created_at DESC
 `
 
-type ListDocumentsByOwnerRow struct {
-	ID        string
-	OwnerID   string
-	Title     string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-func (q *Queries) ListDocumentsByOwner(ctx context.Context, ownerID string) ([]ListDocumentsByOwnerRow, error) {
+func (q *Queries) ListDocumentsByOwner(ctx context.Context, ownerID string) ([]Document, error) {
 	rows, err := q.db.QueryContext(ctx, listDocumentsByOwner, ownerID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListDocumentsByOwnerRow
+	var items []Document
 	for rows.Next() {
-		var i ListDocumentsByOwnerRow
+		var i Document
 		if err := rows.Scan(
 			&i.ID,
 			&i.OwnerID,
 			&i.Title,
+			&i.ShareMode,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -82,10 +68,11 @@ func (q *Queries) ListDocumentsByOwner(ctx context.Context, ownerID string) ([]L
 }
 
 const upsertDocument = `-- name: UpsertDocument :exec
-INSERT INTO documents (id, owner_id, title, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO documents (id, owner_id, title, share_mode, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (id) DO UPDATE
     SET title      = EXCLUDED.title,
+        share_mode = EXCLUDED.share_mode,
         updated_at = EXCLUDED.updated_at
 `
 
@@ -93,6 +80,7 @@ type UpsertDocumentParams struct {
 	ID        string
 	OwnerID   string
 	Title     string
+	ShareMode string
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -102,6 +90,7 @@ func (q *Queries) UpsertDocument(ctx context.Context, arg UpsertDocumentParams) 
 		arg.ID,
 		arg.OwnerID,
 		arg.Title,
+		arg.ShareMode,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)

@@ -15,6 +15,17 @@ export type DocumentRecord = {
   id: string
 }
 
+export type ShareMode = 'private' | 'read' | 'edit'
+
+export type DocumentMeta = {
+  id: string
+  ownerId: string
+  title: string
+  shareMode: ShareMode
+  createdAt: string
+  updatedAt: string
+}
+
 export type Presence = {
   userId: string
   name: string

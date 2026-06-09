@@ -8,12 +8,24 @@ export class AuthError extends Error {
   }
 }
 
+// HttpError preserves the response status so callers can branch on it
+// (e.g. show an access-denied screen for 403).
+export class HttpError extends Error {
+  readonly status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'HttpError'
+    this.status = status
+  }
+}
+
 // Exported so callers can throw consistent errors without duplicating the
 // "read body on failure" pattern.
 export async function expectOk(res: Response, label: string): Promise<Response> {
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`${label} (${res.status})${body ? `: ${body}` : ''}`)
+    throw new HttpError(`${label} (${res.status})${body ? `: ${body}` : ''}`, res.status)
   }
   return res
 }

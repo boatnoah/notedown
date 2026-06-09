@@ -2,16 +2,25 @@ package realtime
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"sync"
 	"time"
 
-	"github.com/go-chi/chi/v5/middleware"
 	"github.com/gorilla/websocket"
 
+	"github.com/boatnoah/notedown/internal/auth"
 	"github.com/boatnoah/notedown/internal/documents"
 )
+
+// bearerSubprotocol is the Sec-WebSocket-Protocol entry that marks the
+// companion entry as a bearer access token. Browsers cannot attach an
+// Authorization header to WebSocket handshakes, so the client sends
+// ["bearer", "<access token>"] as subprotocols and the server echoes
+// "bearer" back. Using the header (rather than a query parameter) keeps the
+// token out of request logs.
+const bearerSubprotocol = "bearer"
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
@@ -19,21 +28,37 @@ var upgrader = websocket.Upgrader{
 
 // Hub coordinates WebSocket connections per document.
 type Hub struct {
-	service  *documents.Service
-	mu       sync.RWMutex
-	rooms    map[string]map[*Client]struct{}
-	presence *PresenceStore
+	service   *documents.Service
+	jwtSecret string
+	mu        sync.RWMutex
+	rooms     map[string]map[*Client]struct{}
+	presence  *PresenceStore
 }
 
-func NewHub(service *documents.Service) *Hub {
+func NewHub(service *documents.Service, jwtSecret string) *Hub {
 	return &Hub{
-		service:  service,
-		rooms:    make(map[string]map[*Client]struct{}),
-		presence: NewPresenceStore(60 * time.Second),
+		service:   service,
+		jwtSecret: jwtSecret,
+		rooms:     make(map[string]map[*Client]struct{}),
+		presence:  NewPresenceStore(60 * time.Second),
 	}
 }
 
-// HandleWebsocket upgrades HTTP connections and registers clients.
+// bearerTokenFromSubprotocols extracts the access token smuggled through the
+// Sec-WebSocket-Protocol header alongside the "bearer" marker.
+func bearerTokenFromSubprotocols(r *http.Request) string {
+	for _, proto := range websocket.Subprotocols(r) {
+		if proto != bearerSubprotocol {
+			return proto
+		}
+	}
+	return ""
+}
+
+// HandleWebsocket authenticates and authorizes the caller, then upgrades the
+// connection and registers the client. Access control must happen before the
+// upgrade so the handshake can fail with a meaningful HTTP status:
+// 401 for missing/invalid tokens, 403 for callers without document access.
 func (h *Hub) HandleWebsocket(w http.ResponseWriter, r *http.Request) {
 	documentID := r.URL.Query().Get("documentId")
 	if documentID == "" {
@@ -44,7 +69,34 @@ func (h *Hub) HandleWebsocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := upgrader.Upgrade(w, r, nil)
+	token := bearerTokenFromSubprotocols(r)
+	if token == "" {
+		http.Error(w, "missing access token", http.StatusUnauthorized)
+		return
+	}
+	identity, err := auth.ParseAccessToken(token, h.jwtSecret)
+	if err != nil {
+		http.Error(w, "invalid or expired access token", http.StatusUnauthorized)
+		return
+	}
+
+	doc, err := h.service.GetDocument(r.Context(), documentID)
+	if err != nil {
+		if errors.Is(err, documents.ErrNotFound) {
+			http.Error(w, "document not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+	if !doc.CanRead(identity.UserID) {
+		http.Error(w, "you do not have access to this document", http.StatusForbidden)
+		return
+	}
+
+	conn, err := upgrader.Upgrade(w, r, http.Header{
+		"Sec-WebSocket-Protocol": {bearerSubprotocol},
+	})
 	if err != nil {
 		log.Printf("ws upgrade failed: %v", err)
 		return
@@ -55,7 +107,9 @@ func (h *Hub) HandleWebsocket(w http.ResponseWriter, r *http.Request) {
 		conn:       conn,
 		send:       make(chan []byte, 32),
 		documentID: documentID,
-		userID:     middleware.GetReqID(r.Context()),
+		userID:     identity.UserID,
+		name:       identity.Name,
+		canEdit:    doc.CanEdit(identity.UserID),
 	}
 
 	h.register(client)
@@ -75,7 +129,7 @@ func (h *Hub) register(c *Client) {
 
 	pres := Presence{
 		UserID: c.userID,
-		Name:   c.userID,
+		Name:   c.displayName(),
 		Color:  assignColor(c.userID),
 		Anchor: 0,
 		Head:   0,
@@ -144,6 +198,16 @@ type Client struct {
 	send       chan []byte
 	documentID string
 	userID     string
+	name       string
+	canEdit    bool
+}
+
+// displayName returns the human-readable name to surface in presence.
+func (c *Client) displayName() string {
+	if c.name != "" {
+		return c.name
+	}
+	return c.userID
 }
 
 func (c *Client) readLoop() {
@@ -166,6 +230,17 @@ func (c *Client) readLoop() {
 
 		switch m := msg.(type) {
 		case OperationMsg:
+			if !c.canEdit {
+				if payload, merr := MarshalServer(ErrorMsg{Error: "read-only access: operations are not permitted"}); merr == nil {
+					select {
+					case c.send <- payload:
+					default:
+					}
+				} else {
+					log.Printf("marshal error msg: %v", merr)
+				}
+				continue
+			}
 			m.Operation.Timestamp = time.Now().UTC()
 			ctx, cancel := rWithTimeout()
 			snapshot, err := c.hub.service.ApplyOperation(ctx, c.documentID, m.Operation)
@@ -214,7 +289,7 @@ func (c *Client) readLoop() {
 		case PresenceMsg:
 			pres := Presence{
 				UserID: c.userID,
-				Name:   c.userID,
+				Name:   c.displayName(),
 				Color:  assignColor(c.userID),
 				Anchor: m.Presence.Anchor,
 				Head:   m.Presence.Head,
