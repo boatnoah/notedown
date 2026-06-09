@@ -4,7 +4,8 @@ import { Decoration, DecorationSet, EditorView, keymap } from '@codemirror/view'
 import { defaultKeymap, insertNewline } from '@codemirror/commands'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import type { Snapshot } from '../../../lib/protocol'
+import type { DocumentMeta, Snapshot } from '../../../lib/protocol'
+import { canEditDocument, isDocumentOwner } from '../lib/access'
 import { applyPresenceDecorations, setRemoteCursors } from '../lib/presenceDecorations'
 import { useCollaborationSession } from '../hooks/useCollaborationSession'
 import { usePresence } from '../hooks/usePresence'
@@ -14,6 +15,8 @@ import { ShareBar } from './ShareBar'
 type EditorProps = {
   documentId: string
   initialSnapshot: Snapshot
+  meta: DocumentMeta
+  currentUserId: string | undefined
 }
 
 const remoteCursorsField = StateField.define<DecorationSet>({
@@ -31,7 +34,11 @@ const remoteCursorsField = StateField.define<DecorationSet>({
   provide: (f) => EditorView.decorations.from(f),
 })
 
-export function Editor({ documentId, initialSnapshot }: EditorProps) {
+export function Editor({ documentId, initialSnapshot, meta, currentUserId }: EditorProps) {
+  const isOwner = isDocumentOwner(meta, currentUserId)
+  // The server enforces this on every operation; the flag only drives UI state.
+  const readOnly = !canEditDocument(meta, currentUserId)
+
   const editorRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const socketRef = useRef<WebSocket | null>(null)
@@ -87,6 +94,8 @@ export function Editor({ documentId, initialSnapshot }: EditorProps) {
       doc: initialSnapshot.content,
       extensions: [
         markdown(),
+        EditorState.readOnly.of(readOnly),
+        EditorView.editable.of(!readOnly),
         keymap.of([...defaultKeymap, { key: 'Enter', run: insertNewline }]),
         EditorView.lineWrapping,
         remoteCursorsField,
@@ -134,7 +143,7 @@ export function Editor({ documentId, initialSnapshot }: EditorProps) {
       view.destroy()
       viewRef.current = null
     }
-  }, [documentId])
+  }, [documentId, readOnly])
 
   const downloadMarkdown = () => {
     const view = viewRef.current
@@ -155,7 +164,7 @@ export function Editor({ documentId, initialSnapshot }: EditorProps) {
 
   return (
     <>
-      <ShareBar onDownload={downloadMarkdown} />
+      <ShareBar meta={meta} isOwner={isOwner} readOnly={readOnly} onDownload={downloadMarkdown} />
       <div className="editor-wrapper">
         <div className="editor-container">
           <div ref={editorRef} id="editor" />

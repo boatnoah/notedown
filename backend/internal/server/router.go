@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/boatnoah/notedown/internal/auth"
 	"github.com/boatnoah/notedown/internal/documents"
 	"github.com/boatnoah/notedown/internal/realtime"
+	"github.com/boatnoah/notedown/pkg/types"
 )
 
 // Dependencies enumerates collaborators needed to wire the HTTP server.
@@ -23,6 +25,7 @@ type Dependencies struct {
 	DocumentService *documents.Service
 	RealtimeHub     *realtime.Hub
 	FrontendURL     string
+	JWTSecret       string
 }
 
 // NewRouter builds a chi router with all API endpoints mounted.
@@ -61,8 +64,11 @@ func NewRouter(deps Dependencies) http.Handler {
 	})
 
 	r.Route("/documents", func(r chi.Router) {
+		r.Use(auth.RequireAuth(deps.JWTSecret))
 		r.Post("/", createDocumentHandler(deps.DocumentService))
 		r.Get("/{id}", getDocumentHandler(deps.DocumentService))
+		r.Get("/{id}/meta", getDocumentMetaHandler(deps.DocumentService))
+		r.Post("/{id}/share", updateShareModeHandler(deps.DocumentService))
 	})
 
 	r.Get("/ws", deps.RealtimeHub.HandleWebsocket)
@@ -72,11 +78,12 @@ func NewRouter(deps Dependencies) http.Handler {
 
 func createDocumentHandler(svc *documents.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ownerID := r.URL.Query().Get("owner")
-		if ownerID == "" {
-			ownerID = "anonymous"
+		identity, ok := auth.IdentityFromContext(r.Context())
+		if !ok {
+			http.Error(w, "missing access token", http.StatusUnauthorized)
+			return
 		}
-		doc, err := svc.CreateDocument(r.Context(), ownerID)
+		doc, err := svc.CreateDocument(r.Context(), identity.UserID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -85,19 +92,96 @@ func createDocumentHandler(svc *documents.Service) http.HandlerFunc {
 	}
 }
 
+// authorizeDocumentRead loads the document and verifies the caller may view
+// it, writing the appropriate error response otherwise.
+func authorizeDocumentRead(w http.ResponseWriter, r *http.Request, svc *documents.Service) (*types.Document, bool) {
+	identity, ok := auth.IdentityFromContext(r.Context())
+	if !ok {
+		http.Error(w, "missing access token", http.StatusUnauthorized)
+		return nil, false
+	}
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		http.Error(w, "missing id", http.StatusBadRequest)
+		return nil, false
+	}
+	doc, err := svc.GetDocument(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, documents.ErrNotFound) {
+			http.Error(w, "document not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+		}
+		return nil, false
+	}
+	if !doc.CanRead(identity.UserID) {
+		http.Error(w, "you do not have access to this document", http.StatusForbidden)
+		return nil, false
+	}
+	return doc, true
+}
+
 func getDocumentHandler(svc *documents.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := chi.URLParam(r, "id")
-		if id == "" {
-			http.Error(w, "missing id", http.StatusBadRequest)
+		doc, ok := authorizeDocumentRead(w, r, svc)
+		if !ok {
 			return
 		}
-		snapshot, err := svc.Snapshot(r.Context(), id)
+		snapshot, err := svc.Snapshot(r.Context(), doc.ID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
 		respondJSON(w, snapshot)
+	}
+}
+
+func getDocumentMetaHandler(svc *documents.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		doc, ok := authorizeDocumentRead(w, r, svc)
+		if !ok {
+			return
+		}
+		respondJSON(w, doc)
+	}
+}
+
+func updateShareModeHandler(svc *documents.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		identity, ok := auth.IdentityFromContext(r.Context())
+		if !ok {
+			http.Error(w, "missing access token", http.StatusUnauthorized)
+			return
+		}
+		id := chi.URLParam(r, "id")
+		if id == "" {
+			http.Error(w, "missing id", http.StatusBadRequest)
+			return
+		}
+
+		var req struct {
+			ShareMode types.ShareMode `json:"shareMode"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&req); err != nil {
+			http.Error(w, "invalid JSON", http.StatusBadRequest)
+			return
+		}
+
+		doc, err := svc.SetShareMode(r.Context(), id, identity.UserID, req.ShareMode)
+		if err != nil {
+			switch {
+			case errors.Is(err, documents.ErrInvalidShareMode):
+				http.Error(w, "shareMode must be one of: private, read, edit", http.StatusBadRequest)
+			case errors.Is(err, documents.ErrNotOwner):
+				http.Error(w, "only the document owner can change sharing", http.StatusForbidden)
+			case errors.Is(err, documents.ErrNotFound):
+				http.Error(w, "document not found", http.StatusNotFound)
+			default:
+				http.Error(w, "internal server error", http.StatusInternalServerError)
+			}
+			return
+		}
+		respondJSON(w, doc)
 	}
 }
 
