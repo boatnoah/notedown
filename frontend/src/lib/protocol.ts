@@ -73,7 +73,10 @@ export type ClientMessage =
   | { type: 'presence'; presence: { anchor: number; head: number } }
 
 export type ServerMessage =
-  SnapshotMessage | PresenceSnapshotMessage | PresenceUpdateMessage | ErrorMessage
+  | SnapshotMessage
+  | PresenceSnapshotMessage
+  | PresenceUpdateMessage
+  | ErrorMessage
 
 // Encodes a ClientMessage to a JSON string for sending over WebSocket.
 // All client→server sends must go through this function.
