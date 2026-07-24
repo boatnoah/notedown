@@ -55,7 +55,15 @@ describe('parseServerMessage', () => {
     const raw = JSON.stringify({
       type: 'presenceSnapshot',
       presences: {
-        u1: { userId: 'u1', name: 'Alice', color: '#f00', anchor: 0, head: 1 },
+        u1: {
+          userId: 'u1',
+          name: 'Alice',
+          username: 'alice',
+          pfp: 'blue',
+          color: '#f00',
+          anchor: 0,
+          head: 1,
+        },
       },
     })
     const msg = parseServerMessage(raw)
@@ -63,6 +71,8 @@ describe('parseServerMessage', () => {
     expect(msg.type).toBe('presenceSnapshot')
     if (msg.type === 'presenceSnapshot') {
       expect(msg.presences['u1'].name).toBe('Alice')
+      expect(msg.presences['u1'].username).toBe('alice')
+      expect(msg.presences['u1'].pfp).toBe('blue')
     }
   })
 
@@ -70,7 +80,15 @@ describe('parseServerMessage', () => {
     const raw = JSON.stringify({
       type: 'presenceUpdate',
       userId: 'u2',
-      presence: { userId: 'u2', name: 'Bob', color: '#0f0', anchor: 5, head: 8 },
+      presence: {
+        userId: 'u2',
+        name: 'Bob',
+        username: 'bob',
+        pfp: 'green',
+        color: '#0f0',
+        anchor: 5,
+        head: 8,
+      },
     })
     const msg = parseServerMessage(raw)
     if (msg === null) throw new Error('expected non-null message')
@@ -78,6 +96,8 @@ describe('parseServerMessage', () => {
     if (msg.type === 'presenceUpdate') {
       expect(msg.userId).toBe('u2')
       expect(msg.presence.anchor).toBe(5)
+      expect(msg.presence.username).toBe('bob')
+      expect(msg.presence.pfp).toBe('green')
     }
   })
 

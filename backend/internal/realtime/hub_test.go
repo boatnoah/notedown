@@ -22,11 +22,16 @@ const testSecret = "hub-test-secret"
 
 func mintToken(t *testing.T, userID string) string {
 	t.Helper()
+	return mintTokenWithClaims(t, userID, "User "+userID, userID, "blue")
+}
+
+func mintTokenWithClaims(t *testing.T, userID, name, username, pfp string) string {
+	t.Helper()
 	claims := jwt.MapClaims{
 		"sub":      userID,
-		"name":     "User " + userID,
-		"username": userID,
-		"pfp":      "blue",
+		"name":     name,
+		"username": username,
+		"pfp":      pfp,
 		"exp":      time.Now().Add(time.Hour).Unix(),
 		"iat":      time.Now().Unix(),
 	}
@@ -35,6 +40,77 @@ func mintToken(t *testing.T, userID string) string {
 		t.Fatalf("sign token: %v", err)
 	}
 	return token
+}
+
+func TestPresenceIncludesIdentityClaimsFromToken(t *testing.T) {
+	svc, srv := newTestHub(t)
+	doc, err := svc.CreateDocument(context.Background(), "owner-1")
+	if err != nil {
+		t.Fatalf("create doc: %v", err)
+	}
+	if _, err := svc.SetShareMode(context.Background(), doc.ID, "owner-1", "edit"); err != nil {
+		t.Fatalf("set share mode: %v", err)
+	}
+
+	conn := mustDial(t, srv, doc.ID, mintTokenWithClaims(t, "guest-1", "Jane Doe", "jane", "purple"))
+	readMessageOfType(t, conn, "snapshot")
+
+	frame := readMessageOfType(t, conn, "presenceSnapshot")
+	var presences map[string]Presence
+	if err := json.Unmarshal(frame["presences"], &presences); err != nil {
+		t.Fatalf("decode presence snapshot: %v", err)
+	}
+
+	presence, ok := presences["guest-1"]
+	if !ok {
+		t.Fatalf("missing guest presence: %#v", presences)
+	}
+	if presence.Name != "Jane Doe" {
+		t.Fatalf("name = %q, want %q", presence.Name, "Jane Doe")
+	}
+	if presence.Username != "jane" {
+		t.Fatalf("username = %q, want %q", presence.Username, "jane")
+	}
+	if presence.Pfp != "purple" {
+		t.Fatalf("pfp = %q, want %q", presence.Pfp, "purple")
+	}
+}
+
+func TestPresenceColorStableAcrossReconnects(t *testing.T) {
+	svc, srv := newTestHub(t)
+	doc, err := svc.CreateDocument(context.Background(), "owner-1")
+	if err != nil {
+		t.Fatalf("create doc: %v", err)
+	}
+	if _, err := svc.SetShareMode(context.Background(), doc.ID, "owner-1", "edit"); err != nil {
+		t.Fatalf("set share mode: %v", err)
+	}
+
+	readColor := func(conn *websocket.Conn) string {
+		readMessageOfType(t, conn, "snapshot")
+		frame := readMessageOfType(t, conn, "presenceSnapshot")
+		var presences map[string]Presence
+		if err := json.Unmarshal(frame["presences"], &presences); err != nil {
+			t.Fatalf("decode presence snapshot: %v", err)
+		}
+		return presences["guest-1"].Color
+	}
+
+	token := mintToken(t, "guest-1")
+	conn1 := mustDial(t, srv, doc.ID, token)
+	color1 := readColor(conn1)
+	_ = conn1.Close()
+	time.Sleep(50 * time.Millisecond)
+
+	conn2 := mustDial(t, srv, doc.ID, token)
+	color2 := readColor(conn2)
+
+	if color1 == "" || color2 == "" {
+		t.Fatalf("expected non-empty colors, got %q and %q", color1, color2)
+	}
+	if color1 != color2 {
+		t.Fatalf("presence color changed across reconnect: %q != %q", color1, color2)
+	}
 }
 
 func newTestHub(t *testing.T) (*documents.Service, *httptest.Server) {

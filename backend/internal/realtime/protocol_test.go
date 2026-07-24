@@ -113,7 +113,16 @@ func TestMarshalServer_Snapshot(t *testing.T) {
 
 func TestMarshalServer_PresenceSnapshot(t *testing.T) {
 	presences := map[string]realtime.Presence{
-		"u1": {UserID: "u1", Name: "Alice", Color: "#ff0000", Anchor: 1, Head: 2, UpdatedAt: time.Time{}},
+		"u1": {
+			UserID:    "u1",
+			Name:      "Alice",
+			Username:  "alice",
+			Pfp:       "blue",
+			Color:     "#ff0000",
+			Anchor:    1,
+			Head:      2,
+			UpdatedAt: time.Time{},
+		},
 	}
 	fields := roundTrip(t, realtime.PresenceSnapshotMsg{Presences: presences})
 	if got := jsonString(t, fields["type"]); got != "presenceSnapshot" {
@@ -125,6 +134,12 @@ func TestMarshalServer_PresenceSnapshot(t *testing.T) {
 	}
 	if out["u1"].Name != "Alice" {
 		t.Errorf("presence name = %q, want Alice", out["u1"].Name)
+	}
+	if out["u1"].Username != "alice" {
+		t.Errorf("presence username = %q, want alice", out["u1"].Username)
+	}
+	if out["u1"].Pfp != "blue" {
+		t.Errorf("presence pfp = %q, want blue", out["u1"].Pfp)
 	}
 }
 

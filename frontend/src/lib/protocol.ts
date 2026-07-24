@@ -39,6 +39,8 @@ export type DocumentMeta = {
 export type Presence = {
   userId: string
   name: string
+  username: string
+  pfp: string
   color: string
   anchor: number
   head: number
