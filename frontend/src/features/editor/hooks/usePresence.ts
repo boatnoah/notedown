@@ -39,7 +39,7 @@ export function usePresence(socketRef: RefObject<WebSocket | null>) {
     if (msg.type === 'presenceUpdate') {
       setRemotePresence((prev) => {
         const next = new Map(prev)
-        if (!msg.presence || (!msg.presence.color && !msg.presence.name)) {
+        if (!msg.presence || msg.presence.userId === '') {
           next.delete(msg.userId)
         } else {
           next.set(msg.userId, msg.presence)

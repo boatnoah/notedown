@@ -11,24 +11,72 @@ function clamp(value: number, min: number, max: number) {
 class CursorWidget extends WidgetType {
   constructor(
     private readonly color: string,
-    private readonly label: string
+    private readonly name: string,
+    private readonly username: string,
+    private readonly pfp: string
   ) {
     super()
   }
 
   eq(other: CursorWidget) {
-    return other instanceof CursorWidget && other.color === this.color && other.label === this.label
+    return (
+      other instanceof CursorWidget &&
+      other.color === this.color &&
+      other.name === this.name &&
+      other.username === this.username &&
+      other.pfp === this.pfp
+    )
   }
 
   toDOM() {
-    const el = document.createElement('span')
-    el.style.borderLeft = `2px solid ${this.color}`
-    el.style.marginLeft = '-1px'
-    el.style.paddingLeft = '1px'
-    el.style.height = '1em'
-    el.style.display = 'inline-block'
-    el.title = this.label
-    return el
+    const pfpColors: Record<string, string> = {
+      blue: '#60A5FA',
+      green: '#4ADE80',
+      red: '#F87171',
+      yellow: '#FACC15',
+      purple: '#A78BFA',
+      orange: '#FB923C',
+    }
+
+    const wrapper = document.createElement('span')
+    wrapper.style.display = 'inline-flex'
+    wrapper.style.alignItems = 'center'
+    wrapper.style.gap = '4px'
+    wrapper.style.marginLeft = '-1px'
+
+    const caret = document.createElement('span')
+    caret.style.borderLeft = `2px solid ${this.color}`
+    caret.style.height = '1em'
+    caret.style.display = 'inline-block'
+    wrapper.appendChild(caret)
+
+    const label = document.createElement('span')
+    label.style.display = 'inline-flex'
+    label.style.alignItems = 'center'
+    label.style.gap = '4px'
+    label.style.padding = '1px 6px'
+    label.style.borderRadius = '9999px'
+    label.style.background = this.color
+    label.style.color = '#fff'
+    label.style.fontSize = '11px'
+    label.style.lineHeight = '1.2'
+    label.style.whiteSpace = 'nowrap'
+
+    const avatar = document.createElement('span')
+    avatar.style.width = '10px'
+    avatar.style.height = '10px'
+    avatar.style.borderRadius = '9999px'
+    avatar.style.background = pfpColors[this.pfp] ?? '#9CA3AF'
+    avatar.style.border = '1px solid rgba(255, 255, 255, 0.8)'
+    label.appendChild(avatar)
+
+    const text = document.createElement('span')
+    text.textContent = this.name
+    label.appendChild(text)
+
+    wrapper.title = `${this.name} (@${this.username})`
+    wrapper.appendChild(label)
+    return wrapper
   }
 
   ignoreEvent() {
@@ -54,7 +102,7 @@ export function buildPresenceDecorations(
     return fromA - fromB
   })
 
-  sorted.forEach(([userId, presence]) => {
+  sorted.forEach(([, presence]) => {
     const anchor = clamp(presence.anchor, 0, docLength)
     const head = clamp(presence.head, 0, docLength)
     const from = Math.min(anchor, head)
@@ -74,7 +122,7 @@ export function buildPresenceDecorations(
       from: to,
       to,
       value: Decoration.widget({
-        widget: new CursorWidget(presence.color, presence.name || userId),
+        widget: new CursorWidget(presence.color, presence.name, presence.username, presence.pfp),
         side: 1,
       }),
     })

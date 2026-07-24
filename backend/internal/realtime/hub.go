@@ -109,6 +109,8 @@ func (h *Hub) HandleWebsocket(w http.ResponseWriter, r *http.Request) {
 		documentID: documentID,
 		userID:     identity.UserID,
 		name:       identity.Name,
+		username:   identity.Username,
+		pfp:        identity.Pfp,
 	}
 
 	h.register(client)
@@ -127,11 +129,13 @@ func (h *Hub) register(c *Client) {
 	h.rooms[c.documentID][c] = struct{}{}
 
 	pres := Presence{
-		UserID: c.userID,
-		Name:   c.displayName(),
-		Color:  assignColor(c.userID),
-		Anchor: 0,
-		Head:   0,
+		UserID:   c.userID,
+		Name:     c.name,
+		Username: c.username,
+		Pfp:      c.pfp,
+		Color:    assignColor(c.userID),
+		Anchor:   0,
+		Head:     0,
 	}
 	h.presence.Update(c.documentID, pres)
 
@@ -198,6 +202,8 @@ type Client struct {
 	documentID string
 	userID     string
 	name       string
+	username   string
+	pfp        string
 }
 
 // canEdit checks the document's current share mode so that owners changing
@@ -212,14 +218,6 @@ func (c *Client) canEdit() bool {
 		return false
 	}
 	return doc.CanEdit(c.userID)
-}
-
-// displayName returns the human-readable name to surface in presence.
-func (c *Client) displayName() string {
-	if c.name != "" {
-		return c.name
-	}
-	return c.userID
 }
 
 func (c *Client) readLoop() {
@@ -300,11 +298,13 @@ func (c *Client) readLoop() {
 			}
 		case PresenceMsg:
 			pres := Presence{
-				UserID: c.userID,
-				Name:   c.displayName(),
-				Color:  assignColor(c.userID),
-				Anchor: m.Presence.Anchor,
-				Head:   m.Presence.Head,
+				UserID:   c.userID,
+				Name:     c.name,
+				Username: c.username,
+				Pfp:      c.pfp,
+				Color:    assignColor(c.userID),
+				Anchor:   m.Presence.Anchor,
+				Head:     m.Presence.Head,
 			}
 			c.hub.presence.Update(c.documentID, pres)
 			if payload, err := MarshalServer(PresenceUpdateMsg{UserID: c.userID, Presence: pres}); err == nil {
